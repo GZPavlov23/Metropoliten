@@ -596,7 +596,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 868d56f6be5e099448503d75266c8b45, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MainMenuController
-  newGameSceneName: SampleScene
+  newGameSceneName: Opening
   continueButton: {fileID: 142375454}
 --- !u!1 &412020196
 GameObject:
