@@ -1,0 +1,19 @@
+NPC character models — source and license record
+
+1. Clerk_OrdinaryMan
+   "lofi ordinary man / psx character" by stephanrobertgames
+   https://stephrobertgames.itch.io/lofi-ordinary-man
+   License: CC0 (public domain)
+
+2. Waiting1_AdultMan
+   "Villager men psx/lowpoly design" (adult man) by stephanrobertgames
+   https://stephrobertgames.itch.io/villager-men-psxlowpoly-design
+   License: CC0 (public domain)
+
+3. Waiting2_YoungMan
+   "Villager men psx/lowpoly design" (young man) by stephanrobertgames
+   https://stephrobertgames.itch.io/villager-men-psxlowpoly-design
+   License: CC0 (public domain)
+
+All three are rigged and pre-configured for Mixamo animation retargeting.
+No attribution required (CC0), but crediting stephanrobertgames is appreciated.
