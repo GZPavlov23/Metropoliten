@@ -1,0 +1,76 @@
+# Everything said in the Opening scene. Change anything you like: the game reads this file directly.
+#
+#   NAME: text          someone says a line
+#   > text              a reply the player can pick; replies in a row make one choice
+#   > text -> label     a reply that jumps to a label afterwards
+#   > [text]            something the player does rather than says
+#   = label             a named place in the script
+#   -> label            jump to a label straight away; "-> end" finishes the conversation
+#   # text              a note to yourself, ignored by the game
+#
+# The scene itself uses the labels arrive, next, gate_locked, door_locked, clerk and again.
+
+= arrive
+NIKOLA: Window two. That's what the letter said.
+
+= next
+CLERK: Next.
+
+= gate_locked
+NIKOLA: Locked. They'll want me at the registry first.
+
+= door_locked
+NIKOLA: Locked. I don't remember it closing behind me.
+
+= clerk
+CLERK: Name.
+> Nikola.
+> It's on the letter you sent me. -> stubborn
+-> job
+
+= stubborn
+CLERK: Name.
+> ...Nikola.
+
+= job
+CLERK: Trainee driver. Night line.
+CLERK: No experience with trains.
+> The advert said none was needed.
+> I learn fast.
+> I need the work.
+CLERK: Nobody comes here with experience.
+CLERK: Sign at the bottom.
+> [Read the form] -> read
+> [Sign it] -> signed
+
+= read
+NIKOLA: This is already filled in.
+NIKOLA: My address. My last job. The hospital. Her ward number.
+> Who gave you this?
+> I never put that on the application.
+CLERK: Is any of it wrong?
+> ...No. -> sign
+> That isn't what I asked. -> insist
+
+= insist
+CLERK: Is any of it wrong?
+> ...No.
+
+= sign
+CLERK: Then sign.
+> [Sign it]
+
+= signed
+CLERK: Stairs on your right. The gate is open now.
+CLERK: The dispatcher will speak to you on the platform. Do as he says.
+> When do I get paid?
+> [Say nothing] -> leave
+CLERK: After the fourth shift. Everyone gets paid.
+
+= leave
+CLERK: Next.
+-> end
+
+= again
+CLERK: Next.
+-> end

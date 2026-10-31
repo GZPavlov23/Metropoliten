@@ -9,7 +9,7 @@ using UnityEngine.SceneManagement;
 
 // Generates the Opening scene: the station vestibule with the registry windows. Every surface is
 // lit by baked lightmaps through URP's Baked Lit shader, and the characters by the baked light probes.
-public static class OpeningSceneBuilder
+public static partial class OpeningSceneBuilder
 {
     const string ScenePath = "Assets/Scenes/Opening.unity";
     const string RootDir = "Assets/Art/Generated/Opening";
@@ -29,7 +29,13 @@ public static class OpeningSceneBuilder
     const float WindowWidth = 0.72f, WindowSill = 1.05f, WindowTop = 1.95f, ClosedWindowX = 2.2f, OpenWindowX = 4.8f;
     const float SeatHeight = 0.44f, LampHeight = 2.72f;
     const float BoothXMin = 3.7f, BoothXMax = 5.9f, BoothDepth = 1.9f, BoothTop = 2.3f;
-    const int ArchSegments = 28;
+    const int ArchSegments = 28, StairSteps = 14;
+    const float StairRise = 0.175f, StairRun = 0.3f, TunnelHeadroom = 2.3f;
+    const float LandingEnd = Width + 1.4f, StairEnd = LandingEnd + StairSteps * StairRun, StairBottom = -StairSteps * StairRise;
+    const float TunnelEnd = StairEnd + 9f;
+
+    // Walls run this far past their corners and joins, so the edge of a lightmap chart never lands on a visible seam.
+    const float WallOverlap = 0.1f;
 
     static readonly float[] RibZ = { 2.87f, 5.73f };
     static readonly ArchProfile Arch = new ArchProfile(0f, Width, Spring, Rise);
@@ -61,10 +67,12 @@ public static class OpeningSceneBuilder
         { "DoorGlass", ("T_DoorGlass", Color.white) },
         { "Bottle", ("T_Paper", new Color(0.2f, 0.12f, 0.05f)) },
         { "Spectacles", ("T_Metal", new Color(0.22f, 0.2f, 0.18f)) },
+        { "RedPaint", ("T_RedPaint", Color.white) },
+        { "GateSteel", ("T_Metal", new Color(0.5f, 0.5f, 0.5f)) },
     };
 
     static Dictionary<string, MeshKit> kits;
-    static MeshKit glow;
+    static MeshKit glow, faultyGlow;
 
     static MeshKit Kit(string name)
     {
@@ -95,6 +103,7 @@ public static class OpeningSceneBuilder
         Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
         kits = new Dictionary<string, MeshKit>();
         glow = new MeshKit();
+        faultyGlow = new MeshKit();
         Transform lights = new GameObject("Lights").transform;
 
         BuildHall();
@@ -106,18 +115,21 @@ public static class OpeningSceneBuilder
         BuildBench(3.25f, 5.3f);
         BuildBench(6.15f, 7.7f);
         BuildProps();
-        HangingTube(lights, 1.5f, 3.5f);
-        HangingTube(lights, 4.3f, 6f);
-        HangingTube(lights, 7.15f, 16f);
+        BuildServices();
+        HangingTube(lights, 1.5f, 3.5f, faultyGlow);
+        HangingTube(lights, 4.3f, 6f, glow);
+        HangingTube(lights, 7.15f, 16f, glow);
 
         Transform architecture = new GameObject("Architecture").transform;
         foreach (KeyValuePair<string, MeshKit> kit in kits) CommitSurface(kit.Key, kit.Value, architecture);
         CommitGlow(architecture);
+        BuildGrime(architecture);
 
         BuildProbes();
-        BuildCharacters();
+        Transform characters = BuildCharacters();
         BuildExitTrigger();
-        BuildPlayer();
+        FirstPersonController player = BuildPlayer();
+        BuildIntro(characters, player, player.cameraTransform);
         ConfigureEnvironment();
 
         EditorSceneManager.SaveScene(scene, ScenePath);
@@ -172,9 +184,9 @@ public static class OpeningSceneBuilder
         Kit("Plaster").ArchFill(Arch, 0f, Spring, Vector3.forward, Vector3.right, ArchSegments, PlasterTile);
 
         var exit = new Rect(ExitZMin, 0f, ExitZMax - ExitZMin, ExitTop);
-        DadoWall(new Vector3(0f, 0f, Length), Vector3.back, Length, new Rect[0]);
-        DadoWall(new Vector3(Width, 0f, 0f), Vector3.forward, Length, new[] { exit });
-        DadoWall(Vector3.zero, Vector3.right, Width, new Rect[0]);
+        DadoWall(new Vector3(0f, 0f, Length), Vector3.back, Length, new Rect[0], WallOverlap);
+        DadoWall(new Vector3(Width, 0f, 0f), Vector3.forward, Length, new[] { exit }, WallOverlap);
+        DadoWall(Vector3.zero, Vector3.right, Width, new Rect[0], 0f);
 
         foreach (float z in RibZ)
         {
@@ -195,14 +207,20 @@ public static class OpeningSceneBuilder
         Kit("Stone").Box(new Vector3(Width - 0.02f, ExitTop + 0.07f, (ExitZMin + ExitZMax) / 2f), new Vector3(0.1f, 0.14f, ExitZMax - ExitZMin + 0.28f), StoneTile);
     }
 
-    static void DadoWall(Vector3 origin, Vector3 along, float length, Rect[] holes)
+    static void DadoWall(Vector3 origin, Vector3 along, float length, Rect[] holes, float overTop)
     {
+        origin -= along * WallOverlap;
+        length += WallOverlap * 2f;
+        var lowerHoles = new Rect[holes.Length];
         var upperHoles = new Rect[holes.Length];
         for (int i = 0; i < holes.Length; i++)
-            upperHoles[i] = new Rect(holes[i].x, holes[i].y - DadoTop, holes[i].width, holes[i].height);
+        {
+            lowerHoles[i] = new Rect(holes[i].x + WallOverlap, holes[i].y, holes[i].width, holes[i].height);
+            upperHoles[i] = new Rect(lowerHoles[i].x, holes[i].y - DadoTop, holes[i].width, holes[i].height);
+        }
 
-        Kit("Dado").WallWithHoles(origin, along, Vector3.up, length, DadoTop, holes, BrickTile);
-        Kit("Plaster").WallWithHoles(origin + Vector3.up * DadoTop, along, Vector3.up, length, Spring - DadoTop, upperHoles, PlasterTile);
+        Kit("Dado").WallWithHoles(origin, along, Vector3.up, length, DadoTop, lowerHoles, BrickTile);
+        Kit("Plaster").WallWithHoles(origin + Vector3.up * DadoTop, along, Vector3.up, length, Spring - DadoTop + overTop, upperHoles, PlasterTile);
     }
 
     static Rect WindowRect(float centerX)
@@ -322,28 +340,27 @@ public static class OpeningSceneBuilder
     static void BuildStairwell(Transform lights)
     {
         float zMin = ExitZMin, zMax = ExitZMax, width = zMax - zMin;
-        const int steps = 14;
-        const float rise = 0.175f, run = 0.3f;
+        const float steps = StairSteps, rise = StairRise, run = StairRun, landingEnd = LandingEnd, stairEnd = StairEnd;
+        const float bottom = StairBottom, tunnelEnd = TunnelEnd, headroom = TunnelHeadroom;
         float slope = rise / run;
-        float landingEnd = Width + 1.4f, stairEnd = landingEnd + steps * run, bottom = -steps * rise, tunnelEnd = stairEnd + 3.4f;
-        const float headroom = 2.3f;
 
         float Ceiling(float x) => Mathf.Max(bottom + headroom, Mathf.Min(ExitTop, ExitTop - (x - landingEnd - 0.5f) * slope));
         float Foot(float x) => x <= landingEnd ? -0.2f : Mathf.Max(bottom, -(x - landingEnd) * slope - 0.2f);
 
         Kit("Floor").Panel(new Vector3(Width - 0.1f, 0f, zMin - 0.1f), Vector3.forward * (width + 0.2f), Vector3.right * (landingEnd - Width + 0.1f), PaverTile);
         Kit("Floor").Panel(new Vector3(stairEnd, bottom, zMin - 0.1f), Vector3.forward * (width + 0.2f), Vector3.right * (tunnelEnd - stairEnd + 0.1f), PaverTile);
-        for (int i = 0; i < steps; i++)
+        for (int i = 0; i < StairSteps; i++)
         {
             float x = landingEnd + i * run, top = -i * rise, tread = top - rise;
             Kit("Stone").Panel(new Vector3(x, tread, zMin), Vector3.forward * width, Vector3.right * run, StoneTile);
             Kit("Stone").PanelFacing(new Vector3(x, tread, zMin), Vector3.forward * width, Vector3.up * rise, Vector3.right, StoneTile);
         }
 
+        // The extra stop keeps the sloped ceiling's lightmap from spanning the whole dark tunnel.
         var breaks = new List<float>
         {
             Width, landingEnd, landingEnd + 0.5f, landingEnd + (-bottom - 0.2f) / slope,
-            landingEnd + 0.5f + (ExitTop - bottom - headroom) / slope, tunnelEnd
+            landingEnd + 0.5f + (ExitTop - bottom - headroom) / slope, stairEnd + 3.4f, tunnelEnd
         };
         breaks.Sort();
         for (int i = 0; i < breaks.Count - 1; i++)
@@ -375,12 +392,19 @@ public static class OpeningSceneBuilder
         }
 
         var bulkhead = new Vector3(landingEnd - 0.5f, ExitTop - 0.03f, (zMin + zMax) / 2f);
-        glow.Box(bulkhead, new Vector3(0.34f, 0.05f, 0.12f), Vector2.one);
-        PointLight(lights, "LandingLamp", bulkhead + Vector3.down * 0.2f, TubeColor, 0.9f, 9f);
+        Kit("Metal").Box(bulkhead + Vector3.up * 0.018f, new Vector3(0.4f, 0.03f, 0.18f), MetalTile);
+        glow.Box(bulkhead + Vector3.down * 0.02f, new Vector3(0.34f, 0.05f, 0.12f), Vector2.one);
+        PointLight(lights, "LandingLamp", bulkhead + Vector3.down * 0.2f, TubeColor, 0.55f, 9f);
 
-        var bulb = new Vector3(tunnelEnd - 0.1f, bottom + 2f, (zMin + zMax) / 2f);
-        glow.Lathe(bulb + Vector3.down * 0.08f, new[] { new Vector2(0f, 0f), new Vector2(0.07f, 0.04f), new Vector2(0.08f, 0.08f), new Vector2(0.06f, 0.13f), new Vector2(0f, 0.16f) }, 10, Vector2.one);
-        PointLight(lights, "StairBulb", bulb + Vector3.left * 0.25f, new Color(1f, 0.84f, 0.64f), 3f, 12f);
+        // A single bare lamp at the foot of the stairs; past it the tunnel runs off into the dark.
+        float tunnelCeiling = bottom + headroom;
+        var bulb = new Vector3(stairEnd + 1.5f, tunnelCeiling - 0.15f, (zMin + zMax) / 2f);
+        Vector2[] shade = { new Vector2(0.17f, 0f), new Vector2(0.12f, 0.06f), new Vector2(0.05f, 0.11f), new Vector2(0.04f, 0.16f) };
+        Kit("Metal").Lathe(bulb, shade, 12, MetalTile);
+        Vector2[] shadeInside = { new Vector2(0.04f, 0.15f), new Vector2(0.05f, 0.1f), new Vector2(0.12f, 0.05f), new Vector2(0.165f, -0.002f) };
+        Kit("Steel").Lathe(bulb, shadeInside, 12, StoneTile);
+        glow.Lathe(bulb + Vector3.down * 0.06f, new[] { new Vector2(0f, 0f), new Vector2(0.035f, 0.02f), new Vector2(0.045f, 0.06f), new Vector2(0.03f, 0.1f), new Vector2(0f, 0.12f) }, 10, Vector2.one);
+        PointLight(lights, "StairBulb", bulb + Vector3.down * 0.12f, new Color(1f, 0.86f, 0.68f), 0.7f, 10f);
     }
 
     static void BuildEntrance()
@@ -443,6 +467,10 @@ public static class OpeningSceneBuilder
 
         Kit("T_Form").Plate(new Vector3(0.42f, SeatHeight + 0.002f, 1.2f), Vector3.up, Vector3.right, 0.24f, 0.33f, 0.003f);
 
+        BuildRadiator(1.2f, 14);
+        Kit("T_Timetable").Plate(new Vector3(Width - 0.012f, 1.7f, 1.9f), Vector3.left, Vector3.up, 1.1f, 0.78f, 0.02f);
+        BuildFireCabinet(new Vector3(Width - 0.09f, 1.5f, 6.95f));
+
         const float pipeY = 2.1f;
         foreach (float x in new[] { 6.8f, 6.71f })
             Kit("Steel").Tube(new Vector3(x, pipeY, -0.05f), new Vector3(x, pipeY, Length + 0.05f), 0.034f, 8, MetalTile);
@@ -460,12 +488,49 @@ public static class OpeningSceneBuilder
         }
     }
 
-    static void HangingTube(Transform lights, float z, float intensity)
+    static void BuildRadiator(float zStart, int fins)
+    {
+        const float finDepth = 0.05f, pitch = 0.085f, height = 0.6f, bottom = 0.16f, x = Width - 0.15f;
+        for (int i = 0; i < fins; i++)
+            Kit("Metal").Box(new Vector3(x, bottom + height / 2f, zStart + i * pitch), new Vector3(0.11f, height, finDepth), MetalTile);
+
+        float zEnd = zStart + (fins - 1) * pitch;
+        foreach (float y in new[] { bottom + 0.06f, bottom + height - 0.06f })
+            Kit("Steel").Tube(new Vector3(x, y, zStart - 0.08f), new Vector3(x, y, zEnd + 0.08f), 0.024f, 8, MetalTile);
+        Kit("Steel").Tube(new Vector3(x, bottom + 0.06f, zStart - 0.08f), new Vector3(x, 0f, zStart - 0.08f), 0.02f, 8, MetalTile);
+        Kit("Steel").Tube(new Vector3(x, bottom + height - 0.06f, zEnd + 0.08f), new Vector3(Width, bottom + height - 0.06f, zEnd + 0.08f), 0.02f, 8, MetalTile);
+    }
+
+    static void BuildFireCabinet(Vector3 center)
+    {
+        var size = new Vector3(0.18f, 0.74f, 0.52f);
+        Kit("RedPaint").Box(center, size, MetalTile);
+        float front = center.x - size.x / 2f;
+        Kit("DoorGlass").Box(new Vector3(front - 0.002f, center.y + 0.1f, center.z), new Vector3(0.006f, 0.34f, 0.36f), Vector2.one);
+        Kit("T_SignFire").Plate(new Vector3(front, center.y - 0.22f, center.z), Vector3.left, Vector3.up, 0.34f, 0.12f, 0.004f);
+    }
+
+    // The tubes need feeding: one conduit along the crown of the vault, dropping into each fixture.
+    static void BuildServices()
+    {
+        const float x = Width / 2f + 0.16f, y = 2.89f;
+        Kit("Steel").Tube(new Vector3(x, y, -0.05f), new Vector3(x, y, Length + 0.05f), 0.014f, 6, MetalTile);
+        for (float z = 0.7f; z < Length; z += 1.4f)
+            Kit("Steel").Tube(new Vector3(x, y, z), new Vector3(x, Arch.HeightAt(x), z), 0.006f, 4, MetalTile);
+
+        foreach (float z in new[] { 1.5f, 4.3f, 7.15f })
+        {
+            Kit("Metal").Box(new Vector3(x, y, z), new Vector3(0.1f, 0.05f, 0.1f), MetalTile);
+            Kit("Steel").Tube(new Vector3(x, y - 0.02f, z), new Vector3(Width / 2f + 0.03f, LampHeight + 0.09f, z), 0.008f, 5, MetalTile);
+        }
+    }
+
+    static void HangingTube(Transform lights, float z, float intensity, MeshKit tube)
     {
         const float length = 1.3f;
         var center = new Vector3(Width / 2f, LampHeight, z);
         Kit("Metal").Box(center + Vector3.up * 0.05f, new Vector3(0.2f, 0.08f, length + 0.06f), MetalTile);
-        glow.Box(center, new Vector3(0.14f, 0.02f, length), Vector2.one);
+        tube.Box(center, new Vector3(0.14f, 0.02f, length), Vector2.one);
         foreach (float offset in new[] { -0.45f, 0.45f })
         {
             Vector3 top = center + new Vector3(0f, 0.09f, offset);
@@ -474,9 +539,9 @@ public static class OpeningSceneBuilder
 
         AreaLight(lights, "Tube", center + Vector3.down * 0.015f, new Vector2(0.16f, length), TubeColor, intensity);
 
-        // Soft fill the housing doesn't block: the glow a bare tube throws back onto the vault.
+        // The glow a bare tube throws back onto the vault, soft enough that the housing casts no hard shadow.
         Light spill = PointLight(lights, "TubeSpill", center + Vector3.down * 0.25f, TubeColor, intensity * 0.1f, 9f);
-        spill.shadows = LightShadows.None;
+        spill.shapeRadius = 0.3f;
     }
 
     static Light BakedLight(Transform parent, string name, LightType type, Vector3 position, Quaternion rotation, Color color, float intensity)
@@ -532,6 +597,99 @@ public static class OpeningSceneBuilder
         return material;
     }
 
+    // Lays a multiplying stain just off a surface. V runs from the base of the stain to its faded edge.
+    static void Stain(MeshKit kit, Vector3 corner, Vector3 along, Vector3 up, Vector3 facing, float repeat)
+    {
+        corner += facing * 0.003f;
+        float uStart = Mathf.Abs(corner.x * 0.37f + corner.z * 0.61f) % 1f;
+        if (Vector3.Dot(Vector3.Cross(along, up), facing) < 0f)
+        {
+            corner += along;
+            along = -along;
+            kit.Quad(corner, corner + along, corner + along + up, corner + up,
+                new Vector2(uStart + repeat, 0f), new Vector2(uStart, 0f), new Vector2(uStart, 1f), new Vector2(uStart + repeat, 1f));
+            return;
+        }
+        kit.Quad(corner, corner + along, corner + along + up, corner + up,
+            new Vector2(uStart, 0f), new Vector2(uStart + repeat, 0f), new Vector2(uStart + repeat, 1f), new Vector2(uStart, 1f));
+    }
+
+    // A soft patch that follows the curve of the vault.
+    static void VaultStain(MeshKit kit, float xMin, float xMax, float zMin, float zMax)
+    {
+        const int strips = 10;
+        for (int i = 0; i < strips; i++)
+        {
+            float u0 = (float)i / strips, u1 = (i + 1f) / strips;
+            float x0 = Mathf.Lerp(xMin, xMax, u0), x1 = Mathf.Lerp(xMin, xMax, u1);
+            float y0 = Arch.HeightAt(x0) - 0.004f, y1 = Arch.HeightAt(x1) - 0.004f;
+            kit.Quad(new Vector3(x0, y0, zMin), new Vector3(x1, y1, zMin), new Vector3(x1, y1, zMax), new Vector3(x0, y0, zMax),
+                new Vector2(u0, 0f), new Vector2(u1, 0f), new Vector2(u1, 1f), new Vector2(u0, 1f));
+        }
+    }
+
+    static void BuildGrime(Transform parent)
+    {
+        var rising = new MeshKit();
+        var streaks = new MeshKit();
+        var blotches = new MeshKit();
+
+        // Dirt climbing the foot of every wall.
+        const float dirt = 0.42f;
+        Stain(rising, new Vector3(0f, 0f, 0f), Vector3.forward * Length, Vector3.up * dirt, Vector3.right, 3f);
+        Stain(rising, new Vector3(0f, 0f, 0f), Vector3.right * 2.38f, Vector3.up * dirt, Vector3.forward, 1f);
+        Stain(rising, new Vector3(4.62f, 0f, 0f), Vector3.right * 2.38f, Vector3.up * dirt, Vector3.forward, 1f);
+        Stain(rising, new Vector3(Width, 0f, 0f), Vector3.forward * (ExitZMin - 0.1f), Vector3.up * dirt, Vector3.left, 1.2f);
+        Stain(rising, new Vector3(Width, 0f, ExitZMax + 0.1f), Vector3.forward * (Length - ExitZMax - 0.1f), Vector3.up * dirt, Vector3.left, 1.2f);
+        Stain(rising, new Vector3(0f, 0f, Length - 0.008f), Vector3.right * Width, Vector3.up * dirt, Vector3.back, 2.4f);
+
+        // The floor darkens towards the walls, leaving a worn middle where people walk.
+        const float edge = 1.05f;
+        Stain(rising, new Vector3(0f, 0f, 0f), Vector3.forward * Length, Vector3.right * edge, Vector3.up, 3f);
+        Stain(rising, new Vector3(Width, 0f, 0f), Vector3.forward * (ExitZMin - 0.1f), Vector3.left * edge, Vector3.up, 1.2f);
+        Stain(rising, new Vector3(Width, 0f, ExitZMax + 0.1f), Vector3.forward * (Length - ExitZMax - 0.1f), Vector3.left * edge, Vector3.up, 1.2f);
+        Stain(rising, new Vector3(0f, 0f, 0f), Vector3.right * Width, Vector3.forward * edge, Vector3.up, 2.4f);
+        Stain(rising, new Vector3(0f, 0f, Length), Vector3.right * Width, Vector3.back * edge, Vector3.up, 2.4f);
+
+        // Water and rust running down from the pipes, the stone capping and the counter.
+        const float pipeStain = 1.04f;
+        Stain(streaks, new Vector3(Width, 2.2f - pipeStain, 0.1f), Vector3.forward * 3.3f, Vector3.up * pipeStain, Vector3.left, 1.4f);
+        Stain(streaks, new Vector3(Width, 2.2f - pipeStain, ExitZMax + 0.15f), Vector3.forward * 3.1f, Vector3.up * pipeStain, Vector3.left, 1.3f);
+        Stain(streaks, new Vector3(0.6f, 0.34f, Length - 0.008f), Vector3.right * 5.8f, Vector3.up * 0.55f, Vector3.back, 2.2f);
+        Stain(streaks, new Vector3(0f, 0.5f, 0f), Vector3.forward * Length, Vector3.up * 0.58f, Vector3.right, 3.4f);
+
+        // Soot over each tube, shoulder wear where people lean back on the benches, and old marks on the floor.
+        foreach (float z in new[] { 1.5f, 4.3f, 7.15f })
+            VaultStain(blotches, Width / 2f - 1.15f, Width / 2f + 1.15f, z - 1.25f, z + 1.25f);
+        foreach (float z in new[] { 1.55f, 4.0f, 6.85f })
+            Stain(blotches, new Vector3(0f, 1.14f, z - 0.85f), Vector3.forward * 1.7f, Vector3.up * 0.42f, Vector3.right, 1f);
+        Stain(blotches, new Vector3(3.9f, 1.05f, Length - 0.44f), Vector3.right * 1.8f, Vector3.forward * 0.46f, Vector3.up, 1f);
+        Stain(blotches, new Vector3(1f, 0f, 1.6f), Vector3.right * 2.2f, Vector3.forward * 1.9f, Vector3.up, 1f);
+        Stain(blotches, new Vector3(4.2f, 0f, 2.6f), Vector3.right * 2.7f, Vector3.forward * 2.3f, Vector3.up, 1f);
+        Stain(blotches, new Vector3(1.8f, 0f, 5.5f), Vector3.right * 2.1f, Vector3.forward * 2.2f, Vector3.up, 1f);
+
+        CommitStains("Stains_Rising", "T_GrimeRising", rising, parent);
+        CommitStains("Stains_Streaks", "T_GrimeStreaks", streaks, parent);
+        CommitStains("Stains_Blotches", "T_GrimeBlotch", blotches, parent);
+    }
+
+    static void CommitStains(string name, string texture, MeshKit kit, Transform parent)
+    {
+        var go = new GameObject(name);
+        go.transform.SetParent(parent);
+        Mesh mesh = kit.ToMesh(name);
+        AssetDatabase.CreateAsset(mesh, $"{MeshDir}/{name}.asset");
+        go.AddComponent<MeshFilter>().sharedMesh = mesh;
+
+        Material material = LoadOrCreateMaterial(texture, "Metropoliten/Grime");
+        material.SetTexture("_BaseMap", AssetDatabase.LoadAssetAtPath<Texture2D>(TextureForge.Path(texture)));
+        EditorUtility.SetDirty(material);
+        var renderer = go.AddComponent<MeshRenderer>();
+        renderer.sharedMaterial = material;
+        renderer.shadowCastingMode = ShadowCastingMode.Off;
+        renderer.lightProbeUsage = LightProbeUsage.Off;
+    }
+
     static Mesh SaveMesh(MeshKit kit, string name)
     {
         Mesh mesh = kit.ToMesh(name);
@@ -550,7 +708,8 @@ public static class OpeningSceneBuilder
         surface.sharedMaterial = SurfaceMaterial(name);
 
         // Trims are only centimetres wide: at the scene's density they fall under a texel and pick up stray colour.
-        if (name == "Stone")
+        // The counter is simply looked at from close up for a whole conversation.
+        if (name == "Stone" || name == "Counter")
         {
             var serialized = new SerializedObject(surface);
             serialized.FindProperty("m_ScaleInLightmap").floatValue = 3f;
@@ -564,13 +723,21 @@ public static class OpeningSceneBuilder
 
     static void CommitGlow(Transform parent)
     {
-        var go = new GameObject("LampGlow");
-        go.transform.SetParent(parent);
-        go.AddComponent<MeshFilter>().sharedMesh = SaveMesh(glow, "LampGlow");
         Material material = LoadOrCreateMaterial("LampGlow", "Universal Render Pipeline/Unlit");
         material.SetColor("_BaseColor", new Color(3.2f, 3.1f, 2.8f));
         EditorUtility.SetDirty(material);
-        go.AddComponent<MeshRenderer>().sharedMaterial = material;
+
+        GameObject Glow(string name, MeshKit kit)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(parent);
+            go.AddComponent<MeshFilter>().sharedMesh = SaveMesh(kit, name);
+            go.AddComponent<MeshRenderer>().sharedMaterial = material;
+            return go;
+        }
+
+        Glow("LampGlow", glow);
+        Glow("LampGlow_Faulty", faultyGlow).AddComponent<LampFlicker>();
     }
 
     static void BuildProbes()
@@ -585,6 +752,11 @@ public static class OpeningSceneBuilder
                 for (float z = Length + WallThickness + 0.3f; z < Length + WallThickness + BoothDepth - 0.5f; z += 0.5f)
                     positions.Add(new Vector3(x, y, z));
         }
+        foreach (float y in new[] { 0.35f, 1.25f, 1.9f })
+            foreach (float x in new[] { Width + 0.4f, Width + 1.2f })
+                foreach (float z in new[] { ExitZMin + 0.3f, ExitZMax - 0.3f })
+                    positions.Add(new Vector3(x, y, z));
+
         var go = new GameObject("LightProbes");
         go.AddComponent<LightProbeGroup>().probePositions = positions.ToArray();
     }
@@ -595,6 +767,11 @@ public static class OpeningSceneBuilder
         AssetDatabase.DeleteAsset(path);
         AnimatorController controller = AnimatorController.CreateAnimatorControllerAtPath(path);
         controller.AddMotion(clip);
+
+        // Lets HeadTurn steer the head on top of the animation.
+        AnimatorControllerLayer[] layers = controller.layers;
+        layers[0].iKPass = true;
+        controller.layers = layers;
         return controller;
     }
 
@@ -605,9 +782,9 @@ public static class OpeningSceneBuilder
         throw new System.InvalidOperationException($"No animation clip in {path}");
     }
 
-    static void BuildCharacters()
+    static Transform BuildCharacters()
     {
-        var parent = new GameObject("Characters").transform;
+        Transform parent = new GameObject("Characters").transform;
         AnimationClip idle = LoadClip(IdleClip), sitting = LoadClip(SittingClip);
         RuntimeAnimatorController standing = LoopingController("Idle", idle), seated = LoopingController("Sitting", sitting);
 
@@ -625,6 +802,7 @@ public static class OpeningSceneBuilder
         GameObject young = SpawnCharacter("Waiting_Young", YoungModel, "T_NpcYoung", seated, 1.72f, parent);
         Seat(young, 0.42f, 6.75f);
         BakeShadowProxy(young, parent);
+        return parent;
     }
 
     static GameObject SpawnCharacter(string name, string model, string texture, RuntimeAnimatorController controller, float height, Transform parent)
@@ -823,14 +1001,14 @@ public static class OpeningSceneBuilder
     static void BuildExitTrigger()
     {
         var go = new GameObject("ExitTrigger_ToPlatform");
-        go.transform.position = new Vector3(Width + 1.4f + 14 * 0.3f + 1.2f, -14 * 0.175f + 1.2f, (ExitZMin + ExitZMax) / 2f);
+        go.transform.position = new Vector3(StairEnd + 6.2f, StairBottom + 1.2f, (ExitZMin + ExitZMax) / 2f);
         var box = go.AddComponent<BoxCollider>();
         box.isTrigger = true;
         box.size = new Vector3(0.8f, 3f, ExitZMax - ExitZMin);
         go.AddComponent<SceneTransitionTrigger>().targetSceneName = "Shift1";
     }
 
-    static void BuildPlayer()
+    static FirstPersonController BuildPlayer()
     {
         var player = new GameObject("Player");
         player.tag = "Player";
@@ -854,7 +1032,11 @@ public static class OpeningSceneBuilder
         camera.allowMSAA = false;
         cameraGo.AddComponent<AudioListener>();
 
-        player.AddComponent<FirstPersonController>().cameraTransform = cameraGo.transform;
+        var controls = player.AddComponent<FirstPersonController>();
+        controls.cameraTransform = cameraGo.transform;
+        controls.walkSpeed = PlayerWalkSpeed;
+        controls.sprintSpeed = PlayerSprintSpeed;
+        return controls;
     }
 
     static void ConfigureEnvironment()
@@ -867,7 +1049,7 @@ public static class OpeningSceneBuilder
         RenderSettings.fog = true;
         RenderSettings.fogMode = FogMode.ExponentialSquared;
         RenderSettings.fogColor = new Color(0.012f, 0.011f, 0.008f);
-        RenderSettings.fogDensity = 0.04f;
+        RenderSettings.fogDensity = 0.05f;
     }
 
     static void AddToBuildSettings()

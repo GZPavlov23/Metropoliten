@@ -36,6 +36,8 @@ public static class SceneCapture
         new Shot("7_exit", 4.2f, 1.6f, 4.4f, 90f, 4f),
         new Shot("8_stairs", 7.9f, 1.6f, 4.4f, 90f, 18f),
         new Shot("9_back", 3.5f, 1.6f, 7.4f, 180f, 2f),
+        new Shot("10_gate", 5.4f, 1.6f, 4.4f, 90f, 3f),
+        new Shot("11_tunnel", 13f, -0.8f, 4.4f, 90f, 0f),
     };
 
     public static void Run()
