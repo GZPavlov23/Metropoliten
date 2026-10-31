@@ -17,3 +17,8 @@ NPC character models — source and license record
 
 All three are rigged and pre-configured for Mixamo animation retargeting.
 No attribution required (CC0), but crediting stephanrobertgames is appreciated.
+
+4. Waiting1_AdultMan/Idle.fbx and SittingIdle.fbx
+   Animations from Mixamo (Adobe), https://www.mixamo.com
+   Royalty-free for commercial projects under Adobe's Mixamo terms. Check those
+   terms before release; don't redistribute these files as a standalone asset.
