@@ -148,6 +148,11 @@ public static class TextureForge
         Write("T_Paper", Painted(128, Rgb(214, 208, 190), 0.12f, 3, 0.03f));
         Write("T_Folder", Folders());
         Write("T_Linoleum", Linoleum());
+        Write("T_RedPaint", Painted(128, Rgb(128, 34, 28), 0.3f, 4, 0.14f));
+        Write("T_GrimeRising", GrimeRising());
+        Write("T_GrimeStreaks", GrimeStreaks());
+        Write("T_GrimeBlotch", GrimeBlotch());
+        Write("T_UiShade", UiShade());
         Write("T_DoorGlass", Painted(64, Rgb(30, 34, 30), 0.3f, 3, 0.1f));
 
         Write("T_Plate1", NumberPlate("1"));
@@ -160,6 +165,8 @@ public static class TextureForge
         Write("T_MetroMap", MetroMap());
         Write("T_Clock", ClockFace());
         Write("T_Form", Form());
+        Write("T_Timetable", Timetable());
+        Write("T_SignFire", Banner("ПОЖАРЕН КРАН", 512, 176, Rgb(150, 36, 28), Rgb(232, 226, 208), 44));
 
         Write("T_NpcClerk", ClerkSuit());
         Write("T_NpcAdult", AdultCoat());
@@ -178,7 +185,8 @@ public static class TextureForge
     static void ConfigureImport(string name)
     {
         var importer = (TextureImporter)AssetImporter.GetAtPath(Path(name));
-        bool isSurface = name != "T_Clock" && !name.StartsWith("T_Plate") && !name.StartsWith("T_Sign") && !name.StartsWith("T_Npc");
+        bool isSurface = name != "T_Clock" && name != "T_GrimeBlotch" && !name.StartsWith("T_Plate") && !name.StartsWith("T_Sign")
+            && !name.StartsWith("T_Npc") && !name.StartsWith("T_Ui");
         importer.textureType = TextureImporterType.Default;
         importer.sRGBTexture = true;
         importer.mipmapEnabled = true;
@@ -379,6 +387,76 @@ public static class TextureForge
                 float rings = Mathf.Abs(Mathf.Sin((v + Fractal(u, v, 3, 3, 2, 9) * 0.35f) * Mathf.PI * 18f));
                 float t = Mathf.Clamp01(grain * 1.3f - 0.15f - rings * 0.16f);
                 canvas[x, y] = Opaque(Color.Lerp(dark, light, t) * Detail(x * 2f, y * 2f, 0.3f));
+            }
+        }
+        return canvas;
+    }
+
+    // Behind the conversation text: dark along the bottom of the screen, clear by the top.
+    static Canvas UiShade()
+    {
+        var canvas = new Canvas(4, 128, Color.clear);
+        for (int y = 0; y < 128; y++)
+        {
+            float t = 1f - y / 127f;
+            Color shade = new Color(0f, 0f, 0f, t * t * (3f - 2f * t) * 0.85f);
+            for (int x = 0; x < 4; x++) canvas[x, y] = shade;
+        }
+        return canvas;
+    }
+
+    static readonly Color Soot = new Color(0.5f, 0.46f, 0.41f, 1f);
+
+    // Dark along the bottom row, fading to white at the top with a torn, uneven edge. Tiles across.
+    static Canvas GrimeRising()
+    {
+        var canvas = new Canvas(512, 256, Color.white);
+        for (int y = 0; y < 256; y++)
+        {
+            for (int x = 0; x < 512; x++)
+            {
+                float u = x / 512f, v = y / 255f;
+                float tatter = (Fractal(u, v, 7, 3, 4, 51) - 0.5f) * 0.9f;
+                float depth = Mathf.Clamp01(1f - (v + tatter * Mathf.Sin(v * Mathf.PI)));
+                depth = depth * depth * (3f - 2f * depth) * (1f - v * v);
+                canvas[x, y] = Opaque(Color.Lerp(Color.white, Soot, depth));
+            }
+        }
+        return canvas;
+    }
+
+    // Long drips hanging from the top row, gone by the bottom. Tiles across.
+    static Canvas GrimeStreaks()
+    {
+        var canvas = new Canvas(512, 256, Color.white);
+        for (int y = 0; y < 256; y++)
+        {
+            for (int x = 0; x < 512; x++)
+            {
+                float u = x / 512f, v = y / 255f;
+                float drips = Mathf.InverseLerp(0.46f, 0.78f, Fractal(u, v * 0.3f, 34, 2, 3, 61));
+                float reach = Mathf.Pow(v, 1.6f) * (0.6f + Fractal(u, 0.5f, 9, 1, 2, 67) * 0.8f);
+                float ends = Mathf.Clamp01(v * 3f) * Mathf.Clamp01((1f - v) * 8f);
+                canvas[x, y] = Opaque(Color.Lerp(Color.white, Soot, Mathf.Clamp01(drips * reach) * ends));
+            }
+        }
+        return canvas;
+    }
+
+    // A soft uneven patch, white right out to its borders.
+    static Canvas GrimeBlotch()
+    {
+        var canvas = new Canvas(256, 256, Color.white);
+        for (int y = 0; y < 256; y++)
+        {
+            for (int x = 0; x < 256; x++)
+            {
+                float u = x / 255f, v = y / 255f;
+                float r = new Vector2(u - 0.5f, v - 0.5f).magnitude * 2f;
+                float noise = Fractal(u, v, 4, 4, 5, 71);
+                float strength = Mathf.Clamp01((1f - r) * 1.2f - (noise - 0.5f) * 1.5f - 0.1f);
+                strength = Mathf.Min(strength, Mathf.Clamp01((1f - r) * 3f));
+                canvas[x, y] = Opaque(Color.Lerp(Color.white, Soot, strength * strength * (3f - 2f * strength) * 0.55f));
             }
         }
         return canvas;
@@ -596,6 +674,25 @@ public static class TextureForge
         foreach (Vector2 pin in new[] { new Vector2(112f, 332f), new Vector2(288f, 332f), new Vector2(434f, 332f), new Vector2(128f, 88f), new Vector2(356f, 146f) })
             canvas.FillCircle(pin.x, pin.y, 3f, Rgb(120, 30, 26));
         return Grimed(canvas, 0.45f);
+    }
+
+    static Canvas Timetable()
+    {
+        var canvas = new Canvas(512, 364, Rgb(204, 198, 176));
+        canvas.FillRect(0, 312, 512, 52, Rgb(36, 44, 62));
+        DrawText(canvas, "РАЗПИСАНИЕ", 256f, 326f, 34, Rgb(226, 220, 200), 3f);
+        DrawText(canvas, "НОЩНА ЛИНИЯ", 256f, 282f, 20, Rgb(40, 38, 36));
+        for (int column = 0; column < 4; column++)
+        {
+            int x = 34 + column * 116;
+            canvas.FillRect(x - 12, 22, 1, 248, Rgb(60, 56, 52), column == 0 ? 0f : 0.7f);
+            for (int row = 0; row < 11; row++)
+            {
+                int minutes = 23 * 60 + 4 + (column * 11 + row) * 13;
+                DrawText(canvas, $"{minutes / 60 % 24:00}:{minutes % 60:00}", x + 40, 252 - row * 21, 15, Rgb(46, 44, 42));
+            }
+        }
+        return Grimed(canvas, 0.5f);
     }
 
     static Canvas MetroMap()
