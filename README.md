@@ -10,6 +10,7 @@ A desperate man takes a job as a trainee metro driver in a poor, fictional Bulga
 |---|---|
 | ![Answering the clerk at window 2](docs/screenshots/clerk.jpg) | ![The locked gate to the platform stairs](docs/screenshots/gate.jpg) |
 | ![The hall seen from the registry counter](docs/screenshots/hall-back.jpg) | ![The tunnel at the foot of the stairs](docs/screenshots/tunnel.jpg) |
+| ![The platform with the train waiting](docs/screenshots/platform.jpg) | ![Driving the first run from the cab](docs/screenshots/cab.jpg) |
 
 ## Status
 
