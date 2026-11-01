@@ -275,24 +275,30 @@ public static class SceneForge
         controller.radius = 0.28f;
         controller.stepOffset = 0.2f;
 
-        var cameraGo = new GameObject("Main Camera");
-        cameraGo.tag = "MainCamera";
-        cameraGo.transform.SetParent(player.transform);
-        cameraGo.transform.localPosition = new Vector3(0f, 0.68f, 0f);
-        var camera = cameraGo.AddComponent<Camera>();
+        Camera camera = NewCamera(player.transform);
+        camera.transform.localPosition = new Vector3(0f, 0.68f, 0f);
+
+        var controls = player.AddComponent<FirstPersonController>();
+        controls.cameraTransform = camera.transform;
+        controls.walkSpeed = PlayerWalkSpeed;
+        controls.sprintSpeed = PlayerSprintSpeed;
+        return controls;
+    }
+
+    public static Camera NewCamera(Transform parent)
+    {
+        var go = new GameObject("Main Camera");
+        go.tag = "MainCamera";
+        go.transform.SetParent(parent);
+        var camera = go.AddComponent<Camera>();
         camera.clearFlags = CameraClearFlags.SolidColor;
         camera.backgroundColor = Color.black;
         camera.fieldOfView = 68f;
         camera.nearClipPlane = 0.05f;
         camera.farClipPlane = 60f;
         camera.allowMSAA = false;
-        cameraGo.AddComponent<AudioListener>();
-
-        var controls = player.AddComponent<FirstPersonController>();
-        controls.cameraTransform = cameraGo.transform;
-        controls.walkSpeed = PlayerWalkSpeed;
-        controls.sprintSpeed = PlayerSprintSpeed;
-        return controls;
+        go.AddComponent<AudioListener>();
+        return camera;
     }
 
     public static AudioClip Sound(string name)

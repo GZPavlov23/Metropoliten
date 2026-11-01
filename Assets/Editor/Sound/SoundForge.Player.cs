@@ -21,6 +21,8 @@ public static partial class SoundForge
         Write("I_Radio", RadioClick(rng));
         Write("I_Seat", Seat(rng));
         Write("I_Call", IntercomCall());
+        Write("U_Move", MenuMove(rng));
+        Write("U_Press", MenuPress(rng));
     }
 
     // A hard shoe on stone: the click of the heel, a short knock from the body of the shoe, the sole
@@ -124,6 +126,25 @@ public static partial class SoundForge
         Envelope(squelch, t => Mathf.Exp(-t / 0.08f) * Smooth(t / 0.01f));
         AddInto(x, squelch, 0, 0.6f);
         return Finish(x, -12f);
+    }
+
+    // The menus: a small relay ticking over as the selection moves.
+    static float[] MenuMove(System.Random rng)
+    {
+        var x = new float[Samples(0.08f)];
+        Burst(rng, x, 0, 1800f, 6000f, 0.0012f, 1f);
+        Knock(x, 0, 1450f, 2100f, 0.003f, 0.006f, 0.5f);
+        return Finish(x, -21f, 0.01f);
+    }
+
+    // And the same relay pulling in.
+    static float[] MenuPress(System.Random rng)
+    {
+        var x = new float[Samples(0.22f)];
+        Knock(x, 0, 210f, 420f, 0.006f, 0.02f, 1f);
+        Burst(rng, x, 0, 900f, 5000f, 0.002f, 1.2f);
+        Ping(x, Samples(0.012f), 1240f, 0.02f, 0.35f);
+        return Finish(x, -13f, 0.02f);
     }
 
     // The intercom wanting an answer: a flat two-tone buzz through a speaker the size of a coin.

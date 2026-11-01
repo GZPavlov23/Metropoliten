@@ -16,7 +16,7 @@ public class SoundDirector : MonoBehaviour
     // What plays under each scene, and how loudly.
     static readonly Dictionary<string, (string clip, float level)> SceneBeds = new Dictionary<string, (string, float)>
     {
-        { "MainMenu", ("M_Dread", 0.75f) },
+        { "MainMenu", ("M_Dread", 0.6f) },
         { "Opening", ("M_Dread", 0.25f) },
         { "Shift1", ("M_Dread", 0.5f) },
     };
@@ -87,6 +87,9 @@ public class SoundDirector : MonoBehaviour
         source.priority = 0;
         source.loop = music;
         source.bypassReverbZones = music;
+
+        // The music and the menu's own sounds carry on over the pause, unless nobody's there to hear them.
+        source.ignoreListenerPause = !Application.isBatchMode;
         return source;
     }
 
@@ -107,9 +110,15 @@ public class SoundDirector : MonoBehaviour
         duck.Step(Time.deltaTime);
 
         Presence = presence.Value;
-        bed.volume = bedLevel.Value * duck.Value;
-        oldBed.volume = oldBedLevel.Value * duck.Value;
+        bed.volume = bedLevel.Value * duck.Value * GameSettings.MusicVolume;
+        oldBed.volume = oldBedLevel.Value * duck.Value * GameSettings.MusicVolume;
         if (oldBed.isPlaying && oldBedLevel.Value <= 0f) oldBed.Stop();
+    }
+
+    // Stops everything in the world where it is, leaving the music and the menus.
+    public static void PauseWorld(bool paused)
+    {
+        AudioListener.pause = paused || Application.isBatchMode;
     }
 
     // Crosses to another bed, or glides to a new level if that one is already playing.

@@ -182,6 +182,12 @@ public class DialogueBox : MonoBehaviour
 
         while (true)
         {
+            if (GameMenu.HoldsInput)
+            {
+                yield return null;
+                continue;
+            }
+
             if (Input.GetKeyDown(KeyCode.W) || Input.GetKeyDown(KeyCode.UpArrow)) selected = (selected + count - 1) % count;
             if (Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow)) selected = (selected + 1) % count;
             ShowReplies(step, selected);
@@ -237,6 +243,8 @@ public class DialogueBox : MonoBehaviour
     // skips the next one's typing, or answers a list of replies before it has been seen.
     bool TakeConfirm()
     {
+        if (GameMenu.HoldsInput) return false;
+
         bool pressed = Input.GetKeyDown(KeyCode.E) || Input.GetKeyDown(KeyCode.Space)
             || Input.GetKeyDown(KeyCode.Return) || Input.GetMouseButtonDown(0);
         if (!pressed || lastConfirmFrame == Time.frameCount) return false;
