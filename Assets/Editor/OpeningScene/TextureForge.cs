@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
@@ -99,16 +100,19 @@ public class Canvas
         var texture = new Texture2D(Width, Height, TextureFormat.RGBA32, false);
         texture.SetPixels(Pixels);
         texture.Apply();
-        File.WriteAllBytes(path, texture.EncodeToPNG());
+
+        // Rewriting an unchanged file only risks tripping over whatever has it open right now.
+        byte[] png = texture.EncodeToPNG();
+        if (!File.Exists(path) || !File.ReadAllBytes(path).SequenceEqual(png)) File.WriteAllBytes(path, png);
         UnityEngine.Object.DestroyImmediate(texture);
     }
 }
 
-// Generates the Opening scene's textures from the CC0 concrete and linoleum photos plus procedural
-// patterns: low-res, dirty and photographic, the way early-2000s game textures looked.
-public static class TextureForge
+// Generates the game's textures from the CC0 concrete and linoleum photos plus procedural patterns:
+// low-res, dirty and photographic, the way early-2000s game textures looked.
+public static partial class TextureForge
 {
-    public const string TextureDir = "Assets/Art/Generated/Opening/Textures";
+    public const string TextureDir = "Assets/Art/Generated/Textures";
     public const int BinderSpines = 8;
 
     // The middle of each painted eye on the clerk's atlas.
@@ -128,7 +132,8 @@ public static class TextureForge
 
     public static string Path(string name) => $"{TextureDir}/{name}.png";
 
-    public static void ForgeAll()
+    // Everything more than one scene uses.
+    static void ForgeShared()
     {
         Directory.CreateDirectory(TextureDir);
         written.Clear();
@@ -140,30 +145,35 @@ public static class TextureForge
 
         Write("T_Concrete", Concrete());
         Write("T_Stone", Painted(512, Rgb(228, 224, 214), 0.2f, 7, 0.05f));
-        Write("T_Ochre", Ochre());
         Write("T_Brick", Blocks(512, 16, 8, 3.2f, Rgb(96, 78, 68), Rgb(88, 84, 78), 0.2f, 11));
         Write("T_Pavers", Blocks(512, 12, 6, 2f, Rgb(116, 110, 102), Rgb(72, 68, 62), 0.1f, 23));
         Write("T_Wood", Wood());
         Write("T_Metal", Metal());
         Write("T_Paper", Painted(128, Rgb(214, 208, 190), 0.12f, 3, 0.03f));
-        Write("T_Folder", Folders());
-        Write("T_Linoleum", Linoleum());
         Write("T_RedPaint", Painted(128, Rgb(128, 34, 28), 0.3f, 4, 0.14f));
         Write("T_GrimeRising", GrimeRising());
         Write("T_GrimeStreaks", GrimeStreaks());
         Write("T_GrimeBlotch", GrimeBlotch());
         Write("T_UiShade", UiShade());
         Write("T_DoorGlass", Painted(64, Rgb(30, 34, 30), 0.3f, 3, 0.1f));
+        Write("T_Clock", ClockFace());
+    }
+
+    public static void ForgeOpening()
+    {
+        ForgeShared();
+        Write("T_Ochre", Ochre());
+        Write("T_Folder", Folders());
+        Write("T_Linoleum", Linoleum());
 
         Write("T_Plate1", NumberPlate("1"));
         Write("T_Plate2", NumberPlate("2"));
         Write("T_SignRegistry", Banner("РЕГИСТРАТУРА", 1024, 128, Rgb(34, 40, 52), Rgb(214, 206, 176), 84));
-        Write("T_SignPlatform", PlatformSign(true));
-        Write("T_SignPlatformBack", PlatformSign(false));
+        Write("T_SignPlatform", ArrowSign("ПЕРОН", true));
+        Write("T_SignPlatformBack", ArrowSign("ПЕРОН", false));
         Write("T_SignClosed", ClosedNotice());
         Write("T_NoticeBoard", NoticeBoard());
-        Write("T_MetroMap", MetroMap());
-        Write("T_Clock", ClockFace());
+        Write("T_MetroMap", MetroMap(false));
         Write("T_Form", Form());
         Write("T_Timetable", Timetable());
         Write("T_SignFire", Banner("ПОЖАРЕН КРАН", 512, 176, Rgb(150, 36, 28), Rgb(232, 226, 208), 44));
@@ -171,7 +181,11 @@ public static class TextureForge
         Write("T_NpcClerk", ClerkSuit());
         Write("T_NpcAdult", AdultCoat());
         Write("T_NpcYoung", YoungJacket());
+        ImportWritten();
+    }
 
+    static void ImportWritten()
+    {
         AssetDatabase.Refresh();
         foreach (string name in written) ConfigureImport(name);
     }
@@ -613,11 +627,11 @@ public static class TextureForge
         return Grimed(canvas, 0.55f);
     }
 
-    static Canvas PlatformSign(bool arrowRight)
+    static Canvas ArrowSign(string text, bool arrowRight)
     {
         Color ground = Rgb(36, 52, 84), ink = Rgb(226, 220, 200);
         var canvas = new Canvas(512, 160, ground);
-        DrawText(canvas, "ПЕРОН", arrowRight ? 208f : 304f, 44f, 104, ink, 10f);
+        DrawText(canvas, text, arrowRight ? 208f : 304f, 44f, 104, ink, 10f);
         Vector2 Point(float x, float y) => new Vector2(arrowRight ? x : 512f - x, y);
         canvas.FillPolygon(new[]
         {
@@ -695,7 +709,8 @@ public static class TextureForge
         return Grimed(canvas, 0.5f);
     }
 
-    static Canvas MetroMap()
+    // The platform's copy has one stop that the registry's doesn't: the wrong detail on Shift 1.
+    static Canvas MetroMap(bool extraStop)
     {
         var canvas = new Canvas(512, 384, Rgb(206, 198, 172));
         canvas.FillRect(0, 330, 512, 54, Rgb(36, 44, 62));
@@ -712,6 +727,7 @@ public static class TextureForge
         }
 
         Line(Rgb(150, 44, 36), new Vector2(40f, 70f), new Vector2(120f, 110f), new Vector2(200f, 170f), new Vector2(280f, 170f), new Vector2(360f, 230f), new Vector2(470f, 280f));
+        if (extraStop) Line(Rgb(150, 44, 36), new Vector2(415f, 255f));
         Line(Rgb(44, 72, 120), new Vector2(60f, 290f), new Vector2(140f, 240f), new Vector2(200f, 170f), new Vector2(240f, 100f), new Vector2(330f, 60f));
         Line(Rgb(176, 140, 48), new Vector2(280f, 170f), new Vector2(340f, 110f), new Vector2(430f, 90f));
         return Grimed(canvas, 0.45f);

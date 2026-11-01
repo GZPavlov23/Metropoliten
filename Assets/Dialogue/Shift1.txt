@@ -1,0 +1,111 @@
+# Everything said on the platform in Shift 1. A first draft: change anything you like.
+# The format is explained at the top of Opening.txt.
+# A conversation carries on past labels until it reaches "-> end", so every one needs an "-> end".
+#
+# The scene itself uses the labels briefing, intercom_again, log, log_again, key, key_again,
+# signal, signal_again, cab_locked and seat. On the run it uses drive_moving, drive_fast,
+# drive_station and drive_short, which each show one line while the player drives,
+# then drive_stopped or drive_overran once the train comes to rest.
+
+= briefing
+@ I_Radio
+DISPATCHER: There you are. Right on time.
+DISPATCHER: I'm the dispatcher. You'll hear me on this box and on the cab radio.
+> Where is everyone?
+> The clerk said you'd have instructions. -> instructions
+DISPATCHER: Night shift. There's you, and there's me.
+
+= instructions
+DISPATCHER: Tonight is easy. Three things before you take the train.
+DISPATCHER: Sign the log at the duty booth. Take the cab key from the board. Check the signal at the end of the platform.
+DISPATCHER: Then get in the cab and I'll talk you through the rest.
+> Understood.
+> That's all?
+DISPATCHER: One more thing. There's bread in the booth. Eat something.
+DISPATCHER: Nobody's cooking for you this month.
+> ...Thanks.
+> [Say nothing]
+DISPATCHER: Good lad. Go on.
+-> end
+
+= intercom_again
+NIKOLA: Nothing. Just the hum on the line.
+-> end
+
+= log
+@ I_Pen
+NIKOLA: Name. Time. Signature.
+-> end
+
+= log_again
+NIKOLA: Already signed.
+-> end
+
+= key
+@ I_Key
+NIKOLA: Hook two. Cab key.
+-> end
+
+= key_again
+NIKOLA: Got what I came for.
+-> end
+
+= signal
+NIKOLA: Green. Tunnel's clear.
+-> end
+
+= signal_again
+NIKOLA: Still green.
+-> end
+
+= cab_locked
+NIKOLA: Locked. I'm not done on the platform.
+
+= seat
+@ I_Seat
+@ I_Radio
+DISPATCHER: Good. That's your seat from now on.
+DISPATCHER: One run tonight. Severna, one stop up the line.
+DISPATCHER: Lever forward for power, back for the brake. Stop with your nose at the board on the platform.
+> And if I go past it?
+> Understood. -> away
+DISPATCHER: You won't. The train doesn't let anyone go far.
+
+= away
+DISPATCHER: Take her out slowly.
+-> end
+
+= drive_moving
+@ I_Radio
+DISPATCHER: That's it. Nice and easy.
+
+= drive_fast
+@ I_Radio
+DISPATCHER: Ease off. Fifty is plenty down here.
+
+= drive_station
+@ I_Radio
+DISPATCHER: Severna's coming up. Start bringing her down.
+
+= drive_short
+@ I_Radio
+DISPATCHER: You're short of the board. Bring her up a little.
+
+= drive_stopped
+@ I_Radio
+DISPATCHER: There. That's a stop.
+DISPATCHER: Leave the key in the cab. Someone will see to the train.
+> Who? There's nobody down here.
+> [Say nothing] -> goodnight
+DISPATCHER: Someone always sees to it.
+
+= goodnight
+@ S_Cold
+DISPATCHER: Go home, Nikola. Same time tomorrow.
+-> end
+
+= drive_overran
+@ I_Radio
+DISPATCHER: That's past the board. The train stopped itself, not you.
+DISPATCHER: Everybody does it once.
+-> goodnight

@@ -21,6 +21,7 @@ public class ConversationScript
         public string Speaker;
         public string Text;
         public string Jump;
+        public string Sound;
         public List<Reply> Replies;
     }
 
@@ -46,6 +47,15 @@ public class ConversationScript
             else if (line.StartsWith("->"))
             {
                 steps.Add(new Step { Jump = line.Substring(2).Trim() });
+                choice = null;
+            }
+            else if (line.StartsWith("@"))
+            {
+                string sound = line.Substring(1).Trim();
+
+                // Loaded now, so that a mistyped name is reported as soon as the file is.
+                SoundDirector.Load(sound);
+                steps.Add(new Step { Sound = sound });
                 choice = null;
             }
             else if (line.StartsWith(">"))

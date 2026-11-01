@@ -2,7 +2,7 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-[RequireComponent(typeof(Collider))]
+// Changes scene when the player walks into this object's trigger, or whenever Leave is called.
 public class SceneTransitionTrigger : MonoBehaviour
 {
     [Tooltip("Scene name to load, must match Build Settings exactly.")]
@@ -15,14 +15,23 @@ public class SceneTransitionTrigger : MonoBehaviour
 
     void OnTriggerEnter(Collider other)
     {
-        if (leaving || other.GetComponent<CharacterController>() == null) return;
-        leaving = true;
-        StartCoroutine(Leave());
+        if (other.GetComponent<CharacterController>() != null) Leave();
     }
 
-    IEnumerator Leave()
+    public void Leave()
     {
-        if (fade != null) yield return fade.FadeOut();
+        if (leaving) return;
+        leaving = true;
+        StartCoroutine(FadeAndLoad());
+    }
+
+    IEnumerator FadeAndLoad()
+    {
+        if (fade != null)
+        {
+            SoundDirector.Instance.SinkScene(fade.fadeOutSeconds);
+            yield return fade.FadeOut();
+        }
         SceneManager.LoadScene(targetSceneName);
     }
 }

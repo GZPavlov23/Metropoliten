@@ -24,26 +24,29 @@ public class TalkSpot : MonoBehaviour
     [Tooltip("How directly the player has to look at the person. 1 is dead centre.")]
     public float lookAccuracy = 0.86f;
 
+    [Tooltip("Runs the first time the player presses the key, before anything is said.")]
+    public UnityEvent onTalkStarted = new UnityEvent();
+
     public UnityEvent onFirstConversationEnded = new UnityEvent();
 
     bool talking;
     bool talkedBefore;
+    bool promptShown;
 
     void Update()
     {
         if (talking) return;
 
-        if (!PlayerCanTalk())
-        {
-            dialogue.HidePrompt();
-            return;
-        }
+        // Several spots share one prompt, so each only clears what it put up itself.
+        bool canTalk = !dialogue.InConversation && PlayerCanTalk();
+        if (canTalk) dialogue.ShowPrompt(prompt);
+        else if (promptShown) dialogue.HidePrompt();
+        promptShown = canTalk;
 
-        dialogue.ShowPrompt(prompt);
-        if (Input.GetKeyDown(KeyCode.E)) StartCoroutine(Talk());
+        if (canTalk && Input.GetKeyDown(KeyCode.E)) StartCoroutine(Talk());
     }
 
-    public bool PlayerCanTalk()
+    bool PlayerCanTalk()
     {
         Vector3 offset = player.transform.position - transform.position;
         offset.y = 0f;
@@ -53,11 +56,13 @@ public class TalkSpot : MonoBehaviour
         return Vector3.Dot(view.forward, (person.position - view.position).normalized) > lookAccuracy;
     }
 
-    public IEnumerator Talk()
+    IEnumerator Talk()
     {
         talking = true;
+        promptShown = false;
         dialogue.HidePrompt();
         player.HoldAttention(person);
+        if (!talkedBefore) onTalkStarted.Invoke();
 
         yield return dialogue.Play(talkedBefore ? laterLabel : firstLabel);
 

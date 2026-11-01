@@ -10,8 +10,11 @@ public class ExitGate : MonoBehaviour
     [Tooltip("How much of its width the gate takes up once folded.")]
     public float foldedWidth = 0.12f;
 
+    public AudioSource sound;
+
     public void Open()
     {
+        if (sound != null) sound.Play();
         StartCoroutine(Fold());
     }
 
