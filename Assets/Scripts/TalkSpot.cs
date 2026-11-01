@@ -35,7 +35,7 @@ public class TalkSpot : MonoBehaviour
 
     void Update()
     {
-        if (talking) return;
+        if (talking || GameMenu.HoldsInput) return;
 
         // Several spots share one prompt, so each only clears what it put up itself.
         bool canTalk = !dialogue.InConversation && PlayerCanTalk();

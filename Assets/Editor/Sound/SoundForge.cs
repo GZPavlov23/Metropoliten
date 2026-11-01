@@ -37,7 +37,7 @@ public static partial class SoundForge
     {
         var importer = (AudioImporter)AssetImporter.GetAtPath(PathOf(name));
         AudioImporterSampleSettings settings = importer.defaultSampleSettings;
-        settings.loadType = name.StartsWith("F_") || name.StartsWith("I_") ? AudioClipLoadType.DecompressOnLoad : AudioClipLoadType.CompressedInMemory;
+        settings.loadType = name.StartsWith("F_") || name.StartsWith("I_") || name.StartsWith("U_") ? AudioClipLoadType.DecompressOnLoad : AudioClipLoadType.CompressedInMemory;
         settings.compressionFormat = AudioCompressionFormat.Vorbis;
         settings.quality = VorbisQuality;
         settings.sampleRateSetting = AudioSampleRateSetting.PreserveSampleRate;

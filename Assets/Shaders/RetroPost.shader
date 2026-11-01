@@ -38,6 +38,7 @@ Shader "Hidden/Metropoliten/RetroPost"
             float _Vignette;
             float _Grain;
             float _RoomDim;
+            float _Brightness;
 
             // pcg3d: three independent randoms per pixel per frame.
             float3 PixelNoise(uint2 pixel, uint frame)
@@ -59,7 +60,7 @@ Shader "Hidden/Metropoliten/RetroPost"
                 float2 uv = input.texcoord;
                 float3 color = SAMPLE_TEXTURE2D_X_LOD(_BlitTexture, sampler_LinearClamp, uv, 0).rgb;
 
-                color = 1.0 - exp(-color * _Exposure * (1.0 - _RoomDim));
+                color = 1.0 - exp(-color * _Exposure * (1.0 + _Brightness) * (1.0 - _RoomDim));
                 color = LinearToSRGB(color);
 
                 float luma = dot(color, float3(0.299, 0.587, 0.114));

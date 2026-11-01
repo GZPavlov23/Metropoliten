@@ -169,7 +169,7 @@ public static partial class Shift1SceneBuilder
         BuildBore(NextHallEnd, NextHallEnd + RunOutLength);
         BuildPortalBack(Length + 0.02f, 1f);
         BuildPortalBack(NextHallZ - 0.02f, -1f);
-        BuildRunDressing(lights, signalLamp);
+        BuildRunDressing(lights, signalLamp, NextHallZ);
         BuildTrack(-TunnelLength, NextHallEnd + RunOutLength);
         BuildCar(lights, RearCarStart, RearCarEnd, RearCarEnd, false);
         BuildCar(lights, FrontCarStart, TrainFront, CabBack, true);
@@ -304,13 +304,13 @@ public static partial class Shift1SceneBuilder
     }
 
     // What the driver has to look at on the run: iron rings going by, cables, pipes, doors and lamps.
-    static void BuildRunDressing(Transform lights, MeshKit signalLamp)
+    static void BuildRunDressing(Transform lights, MeshKit signalLamp, float end, bool lamps = true)
     {
         var center = new Vector2(BoreX, BoreY);
         float floorAngle = Mathf.Acos((TrackY - BoreY) / BoreRadius);
 
         // Every fifth ring stands proud of the rest.
-        for (float z = Length + RunRingSpacing; z < NextHallZ; z += RunRingSpacing)
+        for (float z = Length + RunRingSpacing; z < end; z += RunRingSpacing)
             Kit("Tunnel").BoreRing(center, BoreRadius, 0.07f, -floorAngle, floorAngle, z - 0.09f, z + 0.09f, BoreSegments, TubingTile);
 
         // Power cables on the right, carried on brackets, and pipes along the left.
@@ -318,10 +318,10 @@ public static partial class Shift1SceneBuilder
         foreach (float y in cables)
         {
             float x = BoreWall(y, 1f) - 0.1f;
-            Kit("TunnelCable").Tube(new Vector3(x, y, Length), new Vector3(x, y, NextHallZ), 0.024f, 5, MetalTile);
+            Kit("TunnelCable").Tube(new Vector3(x, y, Length), new Vector3(x, y, end), 0.024f, 5, MetalTile);
         }
 
-        for (float z = Length + 2f; z < NextHallZ; z += RunBracketSpacing)
+        for (float z = Length + 2f; z < end; z += RunBracketSpacing)
         {
             float x = BoreWall(1.6f, 1f) - 0.05f;
             Kit("TunnelSteel").Box(new Vector3(x, 1.6f, z), new Vector3(0.14f, 0.82f, 0.05f), MetalTile);
@@ -330,14 +330,14 @@ public static partial class Shift1SceneBuilder
         foreach ((float y, float radius) in new[] { (1.75f, 0.11f), (2.1f, 0.05f) })
         {
             float x = BoreWall(y, -1f) + radius + 0.08f;
-            Kit("TunnelSteel").Tube(new Vector3(x, y, Length), new Vector3(x, y, NextHallZ), radius, 10, MetalTile);
-            for (float z = Length + 3f; z < NextHallZ; z += 6f)
+            Kit("TunnelSteel").Tube(new Vector3(x, y, Length), new Vector3(x, y, end), radius, 10, MetalTile);
+            for (float z = Length + 3f; z < end; z += 6f)
                 Kit("TunnelSteel").Tube(new Vector3(x, y, z - 0.04f), new Vector3(x, y, z + 0.04f), radius + 0.025f, 10, MetalTile);
         }
 
         // Lamps along the right. Every fourth has gone, and nobody comes down here to change them.
         int lampNumber = 0;
-        for (float z = Length + RunLampSpacing / 2f; z < NextHallZ - 10f; z += RunLampSpacing)
+        for (float z = Length + RunLampSpacing / 2f; lamps && z < end - 10f; z += RunLampSpacing)
         {
             const float y = 2.5f;
             var lamp = new Vector3(BoreWall(y, 1f) - 0.17f, y, z);
@@ -355,7 +355,7 @@ public static partial class Shift1SceneBuilder
         }
 
         // Distance boards, facing the driver.
-        for (int i = 1; i <= TextureForge.RunMarkers; i++)
+        for (int i = 1; i <= TextureForge.RunMarkers && Length + i * 100f < end; i++)
         {
             const float y = 1.2f;
             var mark = new Vector3(BoreWall(y, 1f) - 0.5f, y, Length + i * 100f);
@@ -366,6 +366,8 @@ public static partial class Shift1SceneBuilder
         // Steel doors in the left wall, to wherever they go.
         foreach (float z in new[] { 148f, 322f, 471f })
         {
+            if (z >= end) continue;
+
             const float y = 0.55f;
             float x = BoreWall(y, -1f) + 0.04f;
             Kit("TunnelConcrete").Box(new Vector3(x, y, z), new Vector3(0.16f, 2.1f, 1.2f), PlasterTile);
@@ -375,6 +377,8 @@ public static partial class Shift1SceneBuilder
 
         // A signal half way along, showing green.
         const float signalZ = 300f, signalY = 2.3f;
+        if (signalZ >= end) return;
+
         var head = new Vector3(BoreWall(signalY, -1f) + 0.3f, signalY, signalZ);
         Kit("TunnelSteel").Box(head, new Vector3(0.22f, 0.5f, 0.12f), MetalTile);
         signalLamp.Disc(head + new Vector3(0f, -0.12f, -0.063f), Vector3.back, Vector3.up, 0.07f, 14);
@@ -1052,12 +1056,8 @@ public static partial class Shift1SceneBuilder
         return drive;
     }
 
-    static TrainDrive BuildDrive(FirstPersonController player, GameUi ui)
+    static Light BuildHeadlight(float intensity)
     {
-        var seatPoint = new GameObject("SeatPoint").transform;
-        seatPoint.SetParent(train);
-        seatPoint.position = new Vector3(TrackX, SeatedEyeY - player.cameraTransform.localPosition.y, SeatZ);
-
         var beam = new GameObject("Headlight").AddComponent<Light>();
         beam.transform.SetParent(train);
         beam.transform.SetPositionAndRotation(new Vector3(TrackX, 0.8f, TrainFront + 0.2f), Quaternion.LookRotation(new Vector3(0f, -0.02f, 1f)));
@@ -1065,17 +1065,25 @@ public static partial class Shift1SceneBuilder
         beam.lightmapBakeType = LightmapBakeType.Realtime;
         beam.shadows = LightShadows.None;
         beam.color = HeadlightColor;
-        beam.intensity = 26f;
+        beam.intensity = intensity;
         beam.range = 90f;
         beam.spotAngle = 130f;
         beam.innerSpotAngle = 20f;
         beam.enabled = false;
+        return beam;
+    }
+
+    static TrainDrive BuildDrive(FirstPersonController player, GameUi ui)
+    {
+        var seatPoint = new GameObject("SeatPoint").transform;
+        seatPoint.SetParent(train);
+        seatPoint.position = new Vector3(TrackX, SeatedEyeY - player.cameraTransform.localPosition.y, SeatZ);
 
         var drive = train.gameObject.AddComponent<TrainDrive>();
         drive.player = player;
         drive.dialogue = ui.Dialogue;
         drive.seat = seatPoint;
-        drive.headlight = beam;
+        drive.headlight = BuildHeadlight(26f);
         drive.speedNeedle = BuildSpeedNeedle();
         drive.powerLever = BuildPowerLever();
         drive.stopAt = NextHallZ + BoardZ - TrainFront;

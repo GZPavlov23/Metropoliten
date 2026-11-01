@@ -72,10 +72,17 @@ public static class SceneCapture
 
     static readonly float[] RunShots = { 30f, 90f, 200f, 255f, 300f, 420f };
 
+    static readonly Shot[] MenuShots =
+    {
+        new Shot("1_start", 2.5f, 1.35f, 67f, 180f, 0f),
+        new Shot("2_end", 2.5f, 1.35f, 52f, 180f, 0f),
+    };
+
     static readonly Dictionary<string, Shot[]> Shots = new Dictionary<string, Shot[]>
     {
         { "Opening", OpeningShots },
         { "Shift1", Shift1Shots },
+        { "MainMenu", MenuShots },
     };
 
     public static void Run()

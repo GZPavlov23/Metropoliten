@@ -12,6 +12,7 @@ public class FirstPersonController : MonoBehaviour
 
     [Header("Mouse Look")]
     public float mouseSensitivity = 2f;
+    public bool invertMouse;
     public Transform cameraTransform;
     public float lookXLimit = 80f;
 
@@ -44,8 +45,27 @@ public class FirstPersonController : MonoBehaviour
     private Transform attention;
     private Transform seat;
 
+    void OnEnable()
+    {
+        GameSettings.Changed += ApplySettings;
+    }
+
+    void OnDisable()
+    {
+        GameSettings.Changed -= ApplySettings;
+    }
+
+    void ApplySettings()
+    {
+        mouseSensitivity = GameSettings.MouseSensitivity;
+        invertMouse = GameSettings.InvertMouse;
+        headBob.amount = GameSettings.HeadMovement;
+        cameraTransform.GetComponent<Camera>().fieldOfView = GameSettings.FieldOfView;
+    }
+
     void Start()
     {
+        ApplySettings();
         controller = GetComponent<CharacterController>();
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
@@ -57,6 +77,8 @@ public class FirstPersonController : MonoBehaviour
 
     void Update()
     {
+        if (GameMenu.HoldsInput) return;
+
         if (attention != null) TurnTowards(attention.position);
         else HandleMouseLook();
 
@@ -101,7 +123,7 @@ public class FirstPersonController : MonoBehaviour
         }
 
         // Rotate camera up/down, clamped so you can't flip upside down
-        rotationX -= mouseY;
+        rotationX -= invertMouse ? -mouseY : mouseY;
         rotationX = Mathf.Clamp(rotationX, -lookXLimit, lookXLimit);
     }
 
