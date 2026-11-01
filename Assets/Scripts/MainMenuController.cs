@@ -11,6 +11,10 @@ public class MainMenuController : MonoBehaviour
 
     void Start()
     {
+        // The player's scenes lock the mouse, and it has to come back for the menu
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+
         // Only show Continue if a save actually exists
         if (continueButton != null)
         {

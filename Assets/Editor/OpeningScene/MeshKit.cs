@@ -40,6 +40,9 @@ public readonly struct ArchProfile
 // density and stays continuous across every piece built with it.
 public class MeshKit
 {
+    // Everything built from here on lands this far along, so a builder can run twice for a second station.
+    public static Vector3 Origin;
+
     readonly List<Vector3> positions = new List<Vector3>();
     readonly List<Vector3> normals = new List<Vector3>();
     readonly List<Vector2> uvs = new List<Vector2>();
@@ -96,7 +99,7 @@ public class MeshKit
 
     int Add(Vector3 position, Vector3 normal, Vector2 uv)
     {
-        positions.Add(position);
+        positions.Add(position + Origin);
         normals.Add(normal);
         uvs.Add(uv);
         return positions.Count - 1;
@@ -198,7 +201,7 @@ public class MeshKit
         }
         for (int i = 0; i < segments; i++)
         {
-            Vector3 winding = Vector3.Cross(positions[first + i] - center, positions[first + i + 1] - center);
+            Vector3 winding = Vector3.Cross(positions[first + i] - center - Origin, positions[first + i + 1] - center - Origin);
             if (Vector3.Dot(winding, normal) >= 0f) Triangle(middle, first + i, first + i + 1);
             else Triangle(middle, first + i + 1, first + i);
         }
@@ -271,6 +274,46 @@ public class MeshKit
             int d = Add(new Vector3(p0.x, p0.y, zMax), n0, new Vector2(u0, zMax / tile.y));
             Triangle(a, b, c);
             Triangle(a, c, d);
+        }
+    }
+
+    // The inside of a round tunnel running along Z. Angles are in radians, clockwise from straight up.
+    public void Bore(Vector2 center, float radius, float startAngle, float endAngle, float zMin, float zMax, int segments, Vector2 tile)
+    {
+        for (int i = 0; i < segments; i++)
+        {
+            float a0 = Mathf.Lerp(startAngle, endAngle, (float)i / segments), a1 = Mathf.Lerp(startAngle, endAngle, (i + 1f) / segments);
+            var out0 = new Vector2(Mathf.Sin(a0), Mathf.Cos(a0));
+            var out1 = new Vector2(Mathf.Sin(a1), Mathf.Cos(a1));
+            Vector2 p0 = center + out0 * radius, p1 = center + out1 * radius;
+            float u0 = a0 * radius / tile.x, u1 = a1 * radius / tile.x;
+
+            int a = Add(new Vector3(p0.x, p0.y, zMin), -(Vector3)out0, new Vector2(u0, zMin / tile.y));
+            int b = Add(new Vector3(p1.x, p1.y, zMin), -(Vector3)out1, new Vector2(u1, zMin / tile.y));
+            int c = Add(new Vector3(p1.x, p1.y, zMax), -(Vector3)out1, new Vector2(u1, zMax / tile.y));
+            int d = Add(new Vector3(p0.x, p0.y, zMax), -(Vector3)out0, new Vector2(u0, zMax / tile.y));
+            Triangle(a, b, c);
+            Triangle(a, c, d);
+        }
+    }
+
+    // A raised ring round the inside of a bore: its inner face plus the two faces either side of it.
+    public void BoreRing(Vector2 center, float radius, float depth, float startAngle, float endAngle, float zMin, float zMax, int segments, Vector2 tile)
+    {
+        Bore(center, radius - depth, startAngle, endAngle, zMin, zMax, segments, tile);
+        for (int i = 0; i < segments; i++)
+        {
+            float a0 = Mathf.Lerp(startAngle, endAngle, (float)i / segments), a1 = Mathf.Lerp(startAngle, endAngle, (i + 1f) / segments);
+            var out0 = new Vector2(Mathf.Sin(a0), Mathf.Cos(a0));
+            var out1 = new Vector2(Mathf.Sin(a1), Mathf.Cos(a1));
+            Vector2 in0 = center + out0 * (radius - depth), in1 = center + out1 * (radius - depth), rim0 = center + out0 * radius, rim1 = center + out1 * radius;
+
+            foreach (float z in new[] { zMin, zMax })
+            {
+                Vector3 facing = z == zMin ? Vector3.back : Vector3.forward;
+                QuadFacing(new Vector3(in0.x, in0.y, z), new Vector3(in1.x, in1.y, z), new Vector3(rim1.x, rim1.y, z),
+                    new Vector3(rim0.x, rim0.y, z), facing, Vector3.right, Vector3.up, tile);
+            }
         }
     }
 

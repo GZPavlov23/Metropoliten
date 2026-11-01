@@ -6,6 +6,7 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
+using static SceneForge;
 
 // Generates the Opening scene: the station vestibule with the registry windows. Every surface is
 // lit by baked lightmaps through URP's Baked Lit shader, and the characters by the baked light probes.
@@ -13,8 +14,6 @@ public static partial class OpeningSceneBuilder
 {
     const string ScenePath = "Assets/Scenes/Opening.unity";
     const string RootDir = "Assets/Art/Generated/Opening";
-    const string MeshDir = RootDir + "/Meshes";
-    const string MaterialDir = RootDir + "/Materials";
     const string AnimatorDir = RootDir + "/Animators";
 
     const string ClerkModel = "Assets/Art/Mixamo_NPC/Clerk_OrdinaryMan/ordinaryMan.fbx";
@@ -37,15 +36,14 @@ public static partial class OpeningSceneBuilder
     // Walls run this far past their corners and joins, so the edge of a lightmap chart never lands on a visible seam.
     const float WallOverlap = 0.1f;
 
+    // Big heads and hands on thin bodies are half of what makes these people unsettling.
+    const float HeadScale = 1.28f, HandScale = 1.3f;
+
+    // The models' arms stop short of their thighs when they sit, about a fifth under normal length.
+    const float SeatedArmScale = 1.2f;
+
     static readonly float[] RibZ = { 2.87f, 5.73f };
     static readonly ArchProfile Arch = new ArchProfile(0f, Width, Spring, Rise);
-
-    static readonly Vector2 PaverTile = new Vector2(4f, 4f), BrickTile = new Vector2(2.4f, 2.4f);
-    static readonly Vector2 PlasterTile = new Vector2(3f, 3f), OchreTile = new Vector2(3.4f, 3.4f);
-    static readonly Vector2 StoneTile = new Vector2(1.6f, 1.6f), WoodTile = new Vector2(1.2f, 1.2f);
-    static readonly Vector2 MetalTile = new Vector2(1f, 1f), PaperTile = new Vector2(0.5f, 0.5f);
-
-    static readonly Color TubeColor = new Color(1f, 0.98f, 0.93f);
 
     static readonly Dictionary<string, (string texture, Color tint)> Surfaces = new Dictionary<string, (string, Color)>
     {
@@ -71,15 +69,6 @@ public static partial class OpeningSceneBuilder
         { "GateSteel", ("T_Metal", new Color(0.5f, 0.5f, 0.5f)) },
     };
 
-    static Dictionary<string, MeshKit> kits;
-    static MeshKit glow, faultyGlow;
-
-    static MeshKit Kit(string name)
-    {
-        if (!kits.TryGetValue(name, out MeshKit kit)) kits[name] = kit = new MeshKit();
-        return kit;
-    }
-
     [MenuItem("Metropoliten/Build Opening Scene")]
     public static void BuildFromMenu()
     {
@@ -90,20 +79,18 @@ public static partial class OpeningSceneBuilder
 
     public static void Build()
     {
-        foreach (string directory in new[] { MeshDir, MaterialDir, AnimatorDir }) Directory.CreateDirectory(directory);
+        Begin(RootDir, Surfaces);
+        Directory.CreateDirectory(AnimatorDir);
 
         ConfigureCharacter(ClerkModel);
         ConfigureCharacter(AdultModel);
         ConfigureCharacter(YoungModel);
         ConfigureClip(IdleClip);
         ConfigureClip(SittingClip);
-        TextureForge.ForgeAll();
+        TextureForge.ForgeOpening();
         RetroLookSetup.Apply();
 
         Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-        kits = new Dictionary<string, MeshKit>();
-        glow = new MeshKit();
-        faultyGlow = new MeshKit();
         Transform lights = new GameObject("Lights").transform;
 
         BuildHall();
@@ -116,25 +103,26 @@ public static partial class OpeningSceneBuilder
         BuildBench(6.15f, 7.7f);
         BuildProps();
         BuildServices();
-        HangingTube(lights, 1.5f, 3.5f, faultyGlow);
-        HangingTube(lights, 4.3f, 6f, glow);
-        HangingTube(lights, 7.15f, 16f, glow);
+        HangingTube(lights, Arch, new Vector3(Width / 2f, LampHeight, 1.5f), 3.5f, faultyGlow);
+        HangingTube(lights, Arch, new Vector3(Width / 2f, LampHeight, 4.3f), 6f, glow);
+        HangingTube(lights, Arch, new Vector3(Width / 2f, LampHeight, 7.15f), 16f, glow);
 
         Transform architecture = new GameObject("Architecture").transform;
-        foreach (KeyValuePair<string, MeshKit> kit in kits) CommitSurface(kit.Key, kit.Value, architecture);
+        CommitSurfaces(architecture);
         CommitGlow(architecture);
         BuildGrime(architecture);
 
         BuildProbes();
         Transform characters = BuildCharacters();
         BuildExitTrigger();
-        FirstPersonController player = BuildPlayer();
+        FirstPersonController player = BuildPlayer(new Vector3(Width / 2f, 0.92f, 1f));
         BuildIntro(characters, player, player.cameraTransform);
-        ConfigureEnvironment();
+        BuildSound(player);
+        ConfigureEnvironment(0.05f);
 
         EditorSceneManager.SaveScene(scene, ScenePath);
-        AddToBuildSettings();
-        BakeLighting();
+        AddToBuildSettings(ScenePath);
+        BakeLighting("OpeningLighting");
         EditorSceneManager.SaveScene(scene, ScenePath);
         AssetDatabase.SaveAssets();
         Debug.Log($"Built and baked {ScenePath}.");
@@ -525,109 +513,6 @@ public static partial class OpeningSceneBuilder
         }
     }
 
-    static void HangingTube(Transform lights, float z, float intensity, MeshKit tube)
-    {
-        const float length = 1.3f;
-        var center = new Vector3(Width / 2f, LampHeight, z);
-        Kit("Metal").Box(center + Vector3.up * 0.05f, new Vector3(0.2f, 0.08f, length + 0.06f), MetalTile);
-        tube.Box(center, new Vector3(0.14f, 0.02f, length), Vector2.one);
-        foreach (float offset in new[] { -0.45f, 0.45f })
-        {
-            Vector3 top = center + new Vector3(0f, 0.09f, offset);
-            Kit("Steel").Tube(top, new Vector3(top.x, Arch.HeightAt(top.x), top.z), 0.012f, 5, MetalTile);
-        }
-
-        AreaLight(lights, "Tube", center + Vector3.down * 0.015f, new Vector2(0.16f, length), TubeColor, intensity);
-
-        // The glow a bare tube throws back onto the vault, soft enough that the housing casts no hard shadow.
-        Light spill = PointLight(lights, "TubeSpill", center + Vector3.down * 0.25f, TubeColor, intensity * 0.1f, 9f);
-        spill.shapeRadius = 0.3f;
-    }
-
-    static Light BakedLight(Transform parent, string name, LightType type, Vector3 position, Quaternion rotation, Color color, float intensity)
-    {
-        var go = new GameObject(name);
-        go.transform.SetParent(parent);
-        go.transform.SetPositionAndRotation(position, rotation);
-        var light = go.AddComponent<Light>();
-        light.type = type;
-        light.color = color;
-        light.intensity = intensity;
-        light.lightmapBakeType = LightmapBakeType.Baked;
-        light.shadows = LightShadows.Soft;
-        light.bounceIntensity = 1.8f;
-        return light;
-    }
-
-    static void AreaLight(Transform parent, string name, Vector3 position, Vector2 size, Color color, float intensity)
-    {
-        Light light = BakedLight(parent, name, LightType.Rectangle, position, Quaternion.Euler(90f, 0f, 0f), color, intensity);
-        light.areaSize = size;
-        light.range = 16f;
-    }
-
-    static Light PointLight(Transform parent, string name, Vector3 position, Color color, float intensity, float range)
-    {
-        Light light = BakedLight(parent, name, LightType.Point, position, Quaternion.identity, color, intensity);
-        light.range = range;
-        light.shapeRadius = 0.08f;
-        return light;
-    }
-
-    static Material LoadOrCreateMaterial(string name, string shader)
-    {
-        string path = $"{MaterialDir}/M_{name}.mat";
-        var material = AssetDatabase.LoadAssetAtPath<Material>(path);
-        if (material == null)
-        {
-            material = new Material(Shader.Find(shader));
-            AssetDatabase.CreateAsset(material, path);
-        }
-        material.shader = Shader.Find(shader);
-        return material;
-    }
-
-    static Material SurfaceMaterial(string name)
-    {
-        (string texture, Color tint) surface = Surfaces.TryGetValue(name, out var known) ? known : (name, Color.white);
-        Material material = LoadOrCreateMaterial(name, "Universal Render Pipeline/Baked Lit");
-        material.SetTexture("_BaseMap", AssetDatabase.LoadAssetAtPath<Texture2D>(TextureForge.Path(surface.texture)));
-        material.SetColor("_BaseColor", surface.tint);
-        EditorUtility.SetDirty(material);
-        return material;
-    }
-
-    // Lays a multiplying stain just off a surface. V runs from the base of the stain to its faded edge.
-    static void Stain(MeshKit kit, Vector3 corner, Vector3 along, Vector3 up, Vector3 facing, float repeat)
-    {
-        corner += facing * 0.003f;
-        float uStart = Mathf.Abs(corner.x * 0.37f + corner.z * 0.61f) % 1f;
-        if (Vector3.Dot(Vector3.Cross(along, up), facing) < 0f)
-        {
-            corner += along;
-            along = -along;
-            kit.Quad(corner, corner + along, corner + along + up, corner + up,
-                new Vector2(uStart + repeat, 0f), new Vector2(uStart, 0f), new Vector2(uStart, 1f), new Vector2(uStart + repeat, 1f));
-            return;
-        }
-        kit.Quad(corner, corner + along, corner + along + up, corner + up,
-            new Vector2(uStart, 0f), new Vector2(uStart + repeat, 0f), new Vector2(uStart + repeat, 1f), new Vector2(uStart, 1f));
-    }
-
-    // A soft patch that follows the curve of the vault.
-    static void VaultStain(MeshKit kit, float xMin, float xMax, float zMin, float zMax)
-    {
-        const int strips = 10;
-        for (int i = 0; i < strips; i++)
-        {
-            float u0 = (float)i / strips, u1 = (i + 1f) / strips;
-            float x0 = Mathf.Lerp(xMin, xMax, u0), x1 = Mathf.Lerp(xMin, xMax, u1);
-            float y0 = Arch.HeightAt(x0) - 0.004f, y1 = Arch.HeightAt(x1) - 0.004f;
-            kit.Quad(new Vector3(x0, y0, zMin), new Vector3(x1, y1, zMin), new Vector3(x1, y1, zMax), new Vector3(x0, y0, zMax),
-                new Vector2(u0, 0f), new Vector2(u1, 0f), new Vector2(u1, 1f), new Vector2(u0, 1f));
-        }
-    }
-
     static void BuildGrime(Transform parent)
     {
         var rising = new MeshKit();
@@ -660,7 +545,7 @@ public static partial class OpeningSceneBuilder
 
         // Soot over each tube, shoulder wear where people lean back on the benches, and old marks on the floor.
         foreach (float z in new[] { 1.5f, 4.3f, 7.15f })
-            VaultStain(blotches, Width / 2f - 1.15f, Width / 2f + 1.15f, z - 1.25f, z + 1.25f);
+            VaultStain(blotches, Arch, Width / 2f - 1.15f, Width / 2f + 1.15f, z - 1.25f, z + 1.25f);
         foreach (float z in new[] { 1.55f, 4.0f, 6.85f })
             Stain(blotches, new Vector3(0f, 1.14f, z - 0.85f), Vector3.forward * 1.7f, Vector3.up * 0.42f, Vector3.right, 1f);
         Stain(blotches, new Vector3(3.9f, 1.05f, Length - 0.44f), Vector3.right * 1.8f, Vector3.forward * 0.46f, Vector3.up, 1f);
@@ -671,73 +556,6 @@ public static partial class OpeningSceneBuilder
         CommitStains("Stains_Rising", "T_GrimeRising", rising, parent);
         CommitStains("Stains_Streaks", "T_GrimeStreaks", streaks, parent);
         CommitStains("Stains_Blotches", "T_GrimeBlotch", blotches, parent);
-    }
-
-    static void CommitStains(string name, string texture, MeshKit kit, Transform parent)
-    {
-        var go = new GameObject(name);
-        go.transform.SetParent(parent);
-        Mesh mesh = kit.ToMesh(name);
-        AssetDatabase.CreateAsset(mesh, $"{MeshDir}/{name}.asset");
-        go.AddComponent<MeshFilter>().sharedMesh = mesh;
-
-        Material material = LoadOrCreateMaterial(texture, "Metropoliten/Grime");
-        material.SetTexture("_BaseMap", AssetDatabase.LoadAssetAtPath<Texture2D>(TextureForge.Path(texture)));
-        EditorUtility.SetDirty(material);
-        var renderer = go.AddComponent<MeshRenderer>();
-        renderer.sharedMaterial = material;
-        renderer.shadowCastingMode = ShadowCastingMode.Off;
-        renderer.lightProbeUsage = LightProbeUsage.Off;
-    }
-
-    static Mesh SaveMesh(MeshKit kit, string name)
-    {
-        Mesh mesh = kit.ToMesh(name);
-        Unwrapping.GenerateSecondaryUVSet(mesh);
-        AssetDatabase.CreateAsset(mesh, $"{MeshDir}/{name}.asset");
-        return mesh;
-    }
-
-    static void CommitSurface(string name, MeshKit kit, Transform parent)
-    {
-        var go = new GameObject(name);
-        go.transform.SetParent(parent);
-        Mesh mesh = SaveMesh(kit, name);
-        go.AddComponent<MeshFilter>().sharedMesh = mesh;
-        var surface = go.AddComponent<MeshRenderer>();
-        surface.sharedMaterial = SurfaceMaterial(name);
-
-        // Trims are only centimetres wide: at the scene's density they fall under a texel and pick up stray colour.
-        // The counter is simply looked at from close up for a whole conversation.
-        if (name == "Stone" || name == "Counter")
-        {
-            var serialized = new SerializedObject(surface);
-            serialized.FindProperty("m_ScaleInLightmap").floatValue = 3f;
-            serialized.ApplyModifiedPropertiesWithoutUndo();
-        }
-
-        // Kits named after a texture are signs, notices and paper: nothing to bump into.
-        if (!name.StartsWith("T_")) go.AddComponent<MeshCollider>().sharedMesh = mesh;
-        GameObjectUtility.SetStaticEditorFlags(go, StaticEditorFlags.ContributeGI | StaticEditorFlags.BatchingStatic);
-    }
-
-    static void CommitGlow(Transform parent)
-    {
-        Material material = LoadOrCreateMaterial("LampGlow", "Universal Render Pipeline/Unlit");
-        material.SetColor("_BaseColor", new Color(3.2f, 3.1f, 2.8f));
-        EditorUtility.SetDirty(material);
-
-        GameObject Glow(string name, MeshKit kit)
-        {
-            var go = new GameObject(name);
-            go.transform.SetParent(parent);
-            go.AddComponent<MeshFilter>().sharedMesh = SaveMesh(kit, name);
-            go.AddComponent<MeshRenderer>().sharedMaterial = material;
-            return go;
-        }
-
-        Glow("LampGlow", glow);
-        Glow("LampGlow_Faulty", faultyGlow).AddComponent<LampFlicker>();
     }
 
     static void BuildProbes()
@@ -795,14 +613,116 @@ public static partial class OpeningSceneBuilder
         AddSpectacles(clerk);
         BakeShadowProxy(clerk, parent);
 
-        GameObject adult = SpawnCharacter("Waiting_Adult", AdultModel, "T_NpcAdult", seated, 1.78f, parent);
-        Seat(adult, 0.42f, 3.95f);
-        BakeShadowProxy(adult, parent);
-
-        GameObject young = SpawnCharacter("Waiting_Young", YoungModel, "T_NpcYoung", seated, 1.72f, parent);
-        Seat(young, 0.42f, 6.75f);
-        BakeShadowProxy(young, parent);
+        SpawnSeated("Waiting_Adult", AdultModel, "T_NpcAdult", seated, 1.78f, 3.95f, parent);
+        SpawnSeated("Waiting_Young", YoungModel, "T_NpcYoung", seated, 1.72f, 6.75f, parent);
         return parent;
+    }
+
+    static void SpawnSeated(string name, string model, string texture, RuntimeAnimatorController controller, float height, float z, Transform parent)
+    {
+        GameObject character = SpawnCharacter(name, model, texture, controller, height, parent);
+        Animator animator = character.GetComponent<Animator>();
+
+        // Read while the character still stands in its bind pose, with straight arms and palms facing down.
+        var hands = character.AddComponent<RestHandsOnThighs>();
+        hands.left = HandInBindPose(character, animator, true);
+        hands.right = HandInBindPose(character, animator, false);
+
+        foreach (RestHandsOnThighs.Hand hand in new[] { hands.left, hands.right })
+        {
+            hand.upperArm.localScale = Vector3.one * SeatedArmScale;
+            hand.wrist.localScale = Vector3.one * (HandScale / SeatedArmScale);
+        }
+
+        Seat(character, 0.42f, z);
+        hands.left.thighTop = ThighTop(character, hands.left, hands.alongThigh);
+        hands.right.thighTop = ThighTop(character, hands.right, hands.alongThigh);
+        hands.Rest();
+        BakeShadowProxy(character, parent);
+    }
+
+    static RestHandsOnThighs.Hand HandInBindPose(GameObject character, Animator animator, bool left)
+    {
+        Transform Bone(HumanBodyBones leftBone, HumanBodyBones rightBone) => animator.GetBoneTransform(left ? leftBone : rightBone);
+
+        var hand = new RestHandsOnThighs.Hand
+        {
+            upperArm = Bone(HumanBodyBones.LeftUpperArm, HumanBodyBones.RightUpperArm),
+            lowerArm = Bone(HumanBodyBones.LeftLowerArm, HumanBodyBones.RightLowerArm),
+            wrist = Bone(HumanBodyBones.LeftHand, HumanBodyBones.RightHand),
+            upperLeg = Bone(HumanBodyBones.LeftUpperLeg, HumanBodyBones.RightUpperLeg),
+            lowerLeg = Bone(HumanBodyBones.LeftLowerLeg, HumanBodyBones.RightLowerLeg),
+            elbow = new Vector3(left ? -0.5f : 0.5f, 0f, -0.85f)
+        };
+
+        // The hand mesh needn't line up with the forearm, so its axes come from the mesh itself.
+        List<Vector3> points = HandVertices(character, hand.wrist);
+        Vector3 centre = Vector3.zero;
+        foreach (Vector3 point in points) centre += point;
+        centre /= points.Count;
+
+        Vector3 fingers = (centre - hand.wrist.position).normalized;
+
+        // The hand is widest across the knuckles and thinnest through the palm: find those in the plane across the fingers.
+        Vector3 u = Vector3.Cross(fingers, Vector3.up).normalized, v = Vector3.Cross(fingers, u);
+        float uu = 0f, vv = 0f, uv = 0f;
+        foreach (Vector3 point in points)
+        {
+            float a = Vector3.Dot(point - centre, u), b = Vector3.Dot(point - centre, v);
+            uu += a * a;
+            vv += b * b;
+            uv += a * b;
+        }
+        float angle = 0.5f * Mathf.Atan2(2f * uv, uu - vv);
+        Vector3 knuckles = u * Mathf.Cos(angle) + v * Mathf.Sin(angle);
+        Vector3 palm = Vector3.Cross(fingers, knuckles).normalized;
+        if (palm.y > 0f) palm = -palm;
+
+        hand.fingers = hand.wrist.InverseTransformDirection(fingers);
+        hand.palm = hand.wrist.InverseTransformDirection(palm);
+        return hand;
+    }
+
+    static List<Vector3> HandVertices(GameObject character, Transform wrist)
+    {
+        var points = new List<Vector3>();
+        var baked = new Mesh();
+        foreach (SkinnedMeshRenderer renderer in character.GetComponentsInChildren<SkinnedMeshRenderer>())
+        {
+            renderer.BakeMesh(baked, true);
+            Vector3[] vertices = baked.vertices;
+            BoneWeight[] weights = renderer.sharedMesh.boneWeights;
+            Transform[] bones = renderer.bones;
+            for (int i = 0; i < vertices.Length; i++)
+            {
+                Transform bone = bones[weights[i].boneIndex0];
+                if (bone == wrist || bone.IsChildOf(wrist)) points.Add(renderer.transform.TransformPoint(vertices[i]));
+            }
+        }
+        Object.DestroyImmediate(baked);
+        return points;
+    }
+
+    // How far the top of the thigh stands above its bone at the point the hand rests on.
+    static float ThighTop(GameObject character, RestHandsOnThighs.Hand hand, float alongThigh)
+    {
+        // The animated hand hangs not far above the thigh, so only look as high as a thigh can reach.
+        const float searchAlong = 0.1f, searchAcross = 0.09f, tallest = 0.13f;
+        Vector3 hip = hand.upperLeg.position, knee = hand.lowerLeg.position;
+        Vector3 along = (knee - hip).normalized;
+        Vector3 up = Vector3.ProjectOnPlane(Vector3.up, along).normalized;
+        Vector3 across = Vector3.Cross(along, up);
+        Vector3 rest = Vector3.Lerp(hip, knee, alongThigh);
+
+        float top = 0f;
+        foreach (Vector3 point in PosedVertices(character))
+        {
+            Vector3 offset = point - rest;
+            float lift = Vector3.Dot(offset, up);
+            if (Mathf.Abs(Vector3.Dot(offset, along)) < searchAlong && Mathf.Abs(Vector3.Dot(offset, across)) < searchAcross && lift < tallest)
+                top = Mathf.Max(top, lift);
+        }
+        return top;
     }
 
     static GameObject SpawnCharacter(string name, string model, string texture, RuntimeAnimatorController controller, float height, Transform parent)
@@ -833,10 +753,9 @@ public static partial class OpeningSceneBuilder
         animator.applyRootMotion = false;
         animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
 
-        // Big heads and hands on thin bodies are half of what makes these people unsettling.
-        animator.GetBoneTransform(HumanBodyBones.Head).localScale = Vector3.one * 1.28f;
-        animator.GetBoneTransform(HumanBodyBones.LeftHand).localScale = Vector3.one * 1.3f;
-        animator.GetBoneTransform(HumanBodyBones.RightHand).localScale = Vector3.one * 1.3f;
+        animator.GetBoneTransform(HumanBodyBones.Head).localScale = Vector3.one * HeadScale;
+        animator.GetBoneTransform(HumanBodyBones.LeftHand).localScale = Vector3.one * HandScale;
+        animator.GetBoneTransform(HumanBodyBones.RightHand).localScale = Vector3.one * HandScale;
         return character;
     }
 
@@ -1006,90 +925,5 @@ public static partial class OpeningSceneBuilder
         box.isTrigger = true;
         box.size = new Vector3(0.8f, 3f, ExitZMax - ExitZMin);
         go.AddComponent<SceneTransitionTrigger>().targetSceneName = "Shift1";
-    }
-
-    static FirstPersonController BuildPlayer()
-    {
-        var player = new GameObject("Player");
-        player.tag = "Player";
-        player.transform.position = new Vector3(Width / 2f, 0.92f, 1f);
-
-        var controller = player.AddComponent<CharacterController>();
-        controller.height = 1.8f;
-        controller.radius = 0.28f;
-        controller.stepOffset = 0.3f;
-
-        var cameraGo = new GameObject("Main Camera");
-        cameraGo.tag = "MainCamera";
-        cameraGo.transform.SetParent(player.transform);
-        cameraGo.transform.localPosition = new Vector3(0f, 0.68f, 0f);
-        var camera = cameraGo.AddComponent<Camera>();
-        camera.clearFlags = CameraClearFlags.SolidColor;
-        camera.backgroundColor = Color.black;
-        camera.fieldOfView = 68f;
-        camera.nearClipPlane = 0.05f;
-        camera.farClipPlane = 60f;
-        camera.allowMSAA = false;
-        cameraGo.AddComponent<AudioListener>();
-
-        var controls = player.AddComponent<FirstPersonController>();
-        controls.cameraTransform = cameraGo.transform;
-        controls.walkSpeed = PlayerWalkSpeed;
-        controls.sprintSpeed = PlayerSprintSpeed;
-        return controls;
-    }
-
-    static void ConfigureEnvironment()
-    {
-        RenderSettings.skybox = null;
-        RenderSettings.ambientMode = AmbientMode.Flat;
-        RenderSettings.ambientLight = new Color(0.01f, 0.01f, 0.008f);
-        RenderSettings.defaultReflectionMode = DefaultReflectionMode.Custom;
-        RenderSettings.reflectionIntensity = 0f;
-        RenderSettings.fog = true;
-        RenderSettings.fogMode = FogMode.ExponentialSquared;
-        RenderSettings.fogColor = new Color(0.012f, 0.011f, 0.008f);
-        RenderSettings.fogDensity = 0.05f;
-    }
-
-    static void AddToBuildSettings()
-    {
-        var scenes = new List<EditorBuildSettingsScene>(EditorBuildSettings.scenes);
-        if (scenes.Exists(scene => scene.path == ScenePath)) return;
-        scenes.Add(new EditorBuildSettingsScene(ScenePath, true));
-        EditorBuildSettings.scenes = scenes.ToArray();
-    }
-
-    static void BakeLighting()
-    {
-        string path = $"{RootDir}/OpeningLighting.lighting";
-        var settings = AssetDatabase.LoadAssetAtPath<LightingSettings>(path);
-        if (settings == null)
-        {
-            settings = new LightingSettings { name = "OpeningLighting" };
-            AssetDatabase.CreateAsset(settings, path);
-        }
-
-        settings.bakedGI = true;
-        settings.realtimeGI = false;
-        settings.lightmapper = LightingSettings.Lightmapper.ProgressiveGPU;
-        settings.directionalityMode = LightmapsMode.NonDirectional;
-        settings.lightmapResolution = 24f;
-        settings.lightmapPadding = 4;
-        settings.lightmapMaxSize = 2048;
-        settings.lightmapCompression = LightmapCompression.HighQuality;
-        settings.directSampleCount = 64;
-        settings.indirectSampleCount = 1024;
-        settings.environmentSampleCount = 64;
-        settings.maxBounces = 4;
-        settings.ao = true;
-        settings.aoMaxDistance = 1.2f;
-        settings.aoExponentIndirect = 1.2f;
-        settings.aoExponentDirect = 0.4f;
-        settings.filteringMode = LightingSettings.FilterMode.Auto;
-        EditorUtility.SetDirty(settings);
-
-        Lightmapping.lightingSettings = settings;
-        if (!Lightmapping.Bake()) Debug.LogError("Lightmap bake failed.");
     }
 }

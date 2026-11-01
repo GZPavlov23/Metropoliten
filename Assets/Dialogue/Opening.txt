@@ -6,15 +6,11 @@
 #   > [text]            something the player does rather than says
 #   = label             a named place in the script
 #   -> label            jump to a label straight away; "-> end" finishes the conversation
+#                       (a conversation carries on past labels until it reaches one)
+#   @ name              play a sound from Assets/Resources/Sound, without waiting for it
 #   # text              a note to yourself, ignored by the game
 #
-# The scene itself uses the labels arrive, next, gate_locked, door_locked, clerk and again.
-
-= arrive
-NIKOLA: Window two. That's what the letter said.
-
-= next
-CLERK: Next.
+# The scene itself uses the labels gate_locked, door_locked, clerk and again.
 
 = gate_locked
 NIKOLA: Locked. They'll want me at the registry first.
@@ -46,6 +42,7 @@ CLERK: Sign at the bottom.
 = read
 NIKOLA: This is already filled in.
 NIKOLA: My address. My last job. The hospital. Her ward number.
+@ S_Low
 > Who gave you this?
 > I never put that on the application.
 CLERK: Is any of it wrong?
@@ -61,7 +58,9 @@ CLERK: Then sign.
 > [Sign it]
 
 = signed
+@ I_Pen
 CLERK: Stairs on your right. The gate is open now.
+@ A_Stamp
 CLERK: The dispatcher will speak to you on the platform. Do as he says.
 > When do I get paid?
 > [Say nothing] -> leave

@@ -19,6 +19,15 @@ public class LampFlicker : MonoBehaviour
     [Tooltip("How much darker the whole image gets while the tube is out.")]
     public float roomDim = 0.1f;
 
+    [Header("Sound")]
+    [Tooltip("The tube's hum, which goes when the light does.")]
+    public AmbientLoop hum;
+
+    [Tooltip("Where the stutter comes from.")]
+    public AudioSource buzzSource;
+
+    public AudioClip[] buzzes;
+
     Material material;
     Color litColor;
 
@@ -33,6 +42,8 @@ public class LampFlicker : MonoBehaviour
         while (true)
         {
             yield return new WaitForSeconds(Random.Range(calmSeconds.x, calmSeconds.y));
+
+            if (buzzSource != null) buzzSource.PlayOneShot(buzzes[Random.Range(0, buzzes.Length)]);
 
             int blinks = Random.Range(2, 5);
             for (int i = 0; i < blinks; i++)
@@ -49,6 +60,7 @@ public class LampFlicker : MonoBehaviour
     {
         material.SetColor(BaseColor, lit ? litColor : litColor * outBrightness);
         Shader.SetGlobalFloat(RoomDim, lit ? 0f : roomDim);
+        if (hum != null) hum.Level = lit ? 1f : outBrightness;
     }
 
     void OnDisable()
