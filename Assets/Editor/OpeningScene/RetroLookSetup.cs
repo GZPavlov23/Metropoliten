@@ -9,6 +9,7 @@ public static class RetroLookSetup
     const string RendererPath = "Assets/Settings/PC_Renderer.asset";
     const string MaterialPath = "Assets/Art/Generated/M_RetroPost.mat";
     const string ShaderName = "Hidden/Metropoliten/RetroPost";
+    const string FogPass = "OpenFog", FogMaterialPath = "Assets/Art/Generated/M_OpenFog.mat", FogShaderName = "Hidden/Metropoliten/OpenFog";
 
     [MenuItem("Metropoliten/Apply Retro Look To Renderer")]
     public static void Apply()
@@ -22,13 +23,23 @@ public static class RetroLookSetup
         foreach (ScriptableRendererFeature feature in data.rendererFeatures.ToArray())
             if (feature != null && feature.GetType().Name == "ScreenSpaceAmbientOcclusion") RemoveFeature(data, feature);
 
-        FullScreenPassRendererFeature pass = data.rendererFeatures.OfType<FullScreenPassRendererFeature>().FirstOrDefault();
-        if (pass == null) pass = AddFullScreenPass(data);
+        FullScreenPassRendererFeature pass = data.rendererFeatures.OfType<FullScreenPassRendererFeature>().FirstOrDefault(f => f.name != FogPass);
+        if (pass == null) pass = AddFullScreenPass(data, "RetroPost");
         pass.injectionPoint = FullScreenPassRendererFeature.InjectionPoint.AfterRenderingPostProcessing;
         pass.fetchColorBuffer = true;
         pass.passMaterial = material;
         pass.passIndex = 0;
         Grade(material);
+
+        // The open-air fog goes on before anything see-through, so that a fence or a lamp's glow is drawn in front of it.
+        FullScreenPassRendererFeature fog = data.rendererFeatures.OfType<FullScreenPassRendererFeature>().FirstOrDefault(f => f.name == FogPass);
+        if (fog == null) fog = AddFullScreenPass(data, FogPass);
+        fog.injectionPoint = FullScreenPassRendererFeature.InjectionPoint.BeforeRenderingTransparents;
+        fog.fetchColorBuffer = false;
+        fog.requirements = ScriptableRenderPassInput.Depth;
+        fog.passMaterial = FogMaterial();
+        fog.passIndex = 0;
+        EditorUtility.SetDirty(fog);
 
         EditorUtility.SetDirty(pass);
         EditorUtility.SetDirty(data);
@@ -46,6 +57,27 @@ public static class RetroLookSetup
         material.SetFloat("_Vignette", 0.7f);
         material.SetFloat("_Grain", 0.11f);
         EditorUtility.SetDirty(material);
+    }
+
+    static Material FogMaterial()
+    {
+        var material = AssetDatabase.LoadAssetAtPath<Material>(FogMaterialPath);
+        if (material == null)
+        {
+            material = new Material(Shader.Find(FogShaderName));
+            AssetDatabase.CreateAsset(material, FogMaterialPath);
+        }
+        material.SetTexture("_Noise", FogForge.Noise());
+        material.SetFloat("_Density", 0.046f);
+        material.SetFloat("_Ceiling", 16f);
+        material.SetFloat("_Banks", 38f);
+        material.SetFloat("_Wisps", 9f);
+        material.SetFloat("_Lumps", 2.4f);
+        material.SetColor("_Low", new Color(0.46f, 0.475f, 0.5f));
+        material.SetColor("_High", new Color(0.42f, 0.44f, 0.48f));
+        material.SetColor("_Glow", new Color(0.27f, 0.22f, 0.18f));
+        EditorUtility.SetDirty(material);
+        return material;
     }
 
     static Material LoadOrCreateMaterial()
@@ -77,10 +109,10 @@ public static class RetroLookSetup
     }
 
     // The same steps the renderer's Add Renderer Feature button performs.
-    static FullScreenPassRendererFeature AddFullScreenPass(UniversalRendererData data)
+    static FullScreenPassRendererFeature AddFullScreenPass(UniversalRendererData data, string name)
     {
         var pass = ScriptableObject.CreateInstance<FullScreenPassRendererFeature>();
-        pass.name = "RetroPost";
+        pass.name = name;
         AssetDatabase.AddObjectToAsset(pass, data);
         AssetDatabase.TryGetGUIDAndLocalFileIdentifier(pass, out string _, out long localId);
 

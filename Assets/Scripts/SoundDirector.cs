@@ -19,6 +19,7 @@ public class SoundDirector : MonoBehaviour
         { "MainMenu", ("M_Dread", 0.6f) },
         { "Opening", ("M_Dread", 0.25f) },
         { "Shift1", ("M_Dread", 0.5f) },
+        { "Shift2", ("M_Dread", 0.5f) },
     };
 
     // A value on its way to another value.

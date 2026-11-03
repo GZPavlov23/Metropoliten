@@ -20,14 +20,25 @@ public class SlideOpen : MonoBehaviour
 
     public void Open()
     {
-        StopAllCoroutines();
-        StartCoroutine(Slide(closed + offset));
+        MoveTo(closed + offset);
+    }
+
+    // Already open when the scene starts.
+    public void StartOpen()
+    {
+        transform.localPosition = closed + offset;
     }
 
     public void Close()
     {
+        MoveTo(closed);
+    }
+
+    void MoveTo(Vector3 target)
+    {
         StopAllCoroutines();
-        StartCoroutine(Slide(closed));
+        if (ShiftChecklist.Resuming) transform.localPosition = target;
+        else StartCoroutine(Slide(target));
     }
 
     IEnumerator Slide(Vector3 target)

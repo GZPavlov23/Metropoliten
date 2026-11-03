@@ -27,12 +27,11 @@ public class TrainSound : MonoBehaviour
     public string runBed = "M_Deep";
     public float runBedLevel = 0.7f;
     public float runBedFadeSeconds = 9f;
-    public string arrivalBed = "M_Dread";
-    public float arrivalBedLevel = 0.5f;
     public float arrivalBedFadeSeconds = 14f;
 
     int[] jointsPassed;
     bool underway, arriving, moving, tripped;
+    int run;
 
     void Start()
     {
@@ -81,6 +80,12 @@ public class TrainSound : MonoBehaviour
 
     void Mark(float pace)
     {
+        if (run != drive.RunNumber)
+        {
+            run = drive.RunNumber;
+            underway = arriving = tripped = false;
+        }
+
         if (!underway && pace > 0.04f)
         {
             underway = true;
@@ -88,10 +93,11 @@ public class TrainSound : MonoBehaviour
             SoundDirector.Instance.PlayBed(runBed, runBedLevel, runBedFadeSeconds);
         }
 
-        if (!arriving && drive.Travelled > drive.stopAt - drive.callStationAt)
+        if (!arriving && underway && drive.Travelled > drive.StopAt - drive.callStationAt)
         {
             arriving = true;
-            SoundDirector.Instance.PlayBed(arrivalBed, arrivalBedLevel, arrivalBedFadeSeconds);
+            TrainDrive.Run current = drive.CurrentRun;
+            SoundDirector.Instance.PlayBed(current.arrivalBed, current.arrivalBedLevel, arrivalBedFadeSeconds);
         }
 
         if (drive.Tripped && !tripped)

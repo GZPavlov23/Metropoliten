@@ -123,6 +123,33 @@ public class MeshKit
         Triangle(i, i + 2, i + 3);
     }
 
+    // Four corners and their own texture coordinates, flipped if needed so the front points along facing.
+    public void QuadUv(Vector3 a, Vector3 b, Vector3 c, Vector3 d, Vector3 facing, Vector2 uvA, Vector2 uvB, Vector2 uvC, Vector2 uvD)
+    {
+        if (Vector3.Dot(Vector3.Cross(b - a, c - a), facing) >= 0f) Quad(a, b, c, d, uvA, uvB, uvC, uvD);
+        else Quad(a, d, c, b, uvA, uvD, uvC, uvB);
+    }
+
+    // One cell of a smooth skin: four corners, each with a normal of its own. It faces the way they do.
+    public void SkinQuad(Vector3 a, Vector3 b, Vector3 c, Vector3 d, Vector3 na, Vector3 nb, Vector3 nc, Vector3 nd, Vector2 tile)
+    {
+        Vector2 Map(Vector3 p) => new Vector2((p.x + p.z) / tile.x, p.y / tile.y);
+        int first = Add(a, na, Map(a));
+        Add(b, nb, Map(b));
+        Add(c, nc, Map(c));
+        Add(d, nd, Map(d));
+        if (Vector3.Dot(Vector3.Cross(b - a, c - a), na + nb + nc + nd) >= 0f)
+        {
+            Triangle(first, first + 1, first + 2);
+            Triangle(first, first + 2, first + 3);
+        }
+        else
+        {
+            Triangle(first, first + 2, first + 1);
+            Triangle(first, first + 3, first + 2);
+        }
+    }
+
     // The visible side of a panel is Cross(u, v).
     public void Panel(Vector3 origin, Vector3 u, Vector3 v, Vector2 tile)
     {
@@ -352,6 +379,178 @@ public class MeshKit
             Vector2 p0 = arch.Point((float)i / segments), p1 = arch.Point((float)(i + 1) / segments);
             QuadFacing(new Vector3(p0.x, spring, z), new Vector3(p1.x, spring, z), new Vector3(p1.x, p1.y, z),
                 new Vector3(p0.x, p0.y, z), facing, uAxis, Vector3.up, tile);
+        }
+    }
+
+    // A cross-section carried along a straight line. The visible side is Cross(step along the section, along), and
+    // corners gentler than smoothDegrees are smoothed over, so that a curve reads as a curve and an edge stays an edge.
+    public void Sweep(IList<Vector3> section, Vector3 along, Vector2 tile, float smoothDegrees = 40f)
+    {
+        var faces = new Vector3[section.Count - 1];
+        for (int i = 0; i < faces.Length; i++) faces[i] = Vector3.Cross(section[i + 1] - section[i], along).normalized;
+
+        Vector3 alongWay = along.normalized;
+        float travelled = 0f;
+        for (int i = 0; i < faces.Length; i++)
+        {
+            Vector3 a = section[i], b = section[i + 1];
+            Vector3 normalA = i > 0 && Vector3.Angle(faces[i - 1], faces[i]) < smoothDegrees ? (faces[i - 1] + faces[i]).normalized : faces[i];
+            Vector3 normalB = i < faces.Length - 1 && Vector3.Angle(faces[i], faces[i + 1]) < smoothDegrees ? (faces[i] + faces[i + 1]).normalized : faces[i];
+            float length = Vector3.Distance(a, b);
+            float u0 = travelled / tile.x, u1 = (travelled + length) / tile.x;
+            float v0 = Vector3.Dot(a, alongWay) / tile.y, v1 = Vector3.Dot(a + along, alongWay) / tile.y;
+
+            int first = Add(a, normalA, new Vector2(u0, v0));
+            Add(b, normalB, new Vector2(u1, v0));
+            Add(b + along, normalB, new Vector2(u1, v1));
+            Add(a + along, normalA, new Vector2(u0, v1));
+            Triangle(first, first + 1, first + 2);
+            Triangle(first, first + 2, first + 3);
+            travelled += length;
+        }
+    }
+
+    // Closes a loop of points that all lie in one plane, as a fan from its middle.
+    public void Fan(IList<Vector3> outline, Vector3 facing, Vector3 uAxis, Vector3 vAxis, Vector2 tile)
+    {
+        Vector3 middle = Vector3.zero;
+        foreach (Vector3 point in outline) middle += point;
+        middle /= outline.Count;
+
+        Vector2 Map(Vector3 p) => new Vector2(Vector3.Dot(p, uAxis) / tile.x, Vector3.Dot(p, vAxis) / tile.y);
+        int center = Add(middle, facing, Map(middle));
+        for (int i = 0; i < outline.Count; i++)
+        {
+            Vector3 a = outline[i], b = outline[(i + 1) % outline.Count];
+            int first = Add(a, facing, Map(a));
+            Add(b, facing, Map(b));
+            if (Vector3.Dot(Vector3.Cross(a - middle, b - middle), facing) >= 0f) Triangle(center, first, first + 1);
+            else Triangle(center, first + 1, first);
+        }
+    }
+
+    // A box with its edges and corners rolled over.
+    public void RoundedBox(Matrix4x4 m, Vector3 size, float radius, int segments, Vector2 tile)
+    {
+        Vector3 half = size * 0.5f;
+        radius = Mathf.Min(radius, Mathf.Min(half.x, Mathf.Min(half.y, half.z)) - 0.0005f);
+        Vector3 core = half - Vector3.one * radius;
+
+        void Face(Vector3 normal, Vector3 u, Vector3 v)
+        {
+            float halfU = Mathf.Abs(Vector3.Dot(half, u)), halfV = Mathf.Abs(Vector3.Dot(half, v)), halfN = Mathf.Abs(Vector3.Dot(half, normal));
+            float[] Cuts(float h)
+            {
+                var cuts = new float[(segments + 1) * 2];
+                for (int i = 0; i <= segments; i++)
+                {
+                    float t = (float)i / segments;
+                    cuts[i] = -h + radius * t;
+                    cuts[cuts.Length - 1 - i] = h - radius * t;
+                }
+                return cuts;
+            }
+
+            float[] us = Cuts(halfU), vs = Cuts(halfV);
+            int rows = vs.Length, columns = us.Length, first = positions.Count;
+            for (int j = 0; j < rows; j++)
+            {
+                for (int i = 0; i < columns; i++)
+                {
+                    Vector3 onBox = normal * halfN + u * us[i] + v * vs[j];
+                    var inner = new Vector3(Mathf.Clamp(onBox.x, -core.x, core.x), Mathf.Clamp(onBox.y, -core.y, core.y), Mathf.Clamp(onBox.z, -core.z, core.z));
+                    Vector3 way = (onBox - inner).normalized;
+                    Vector3 point = m.MultiplyPoint3x4(inner + way * radius);
+                    Add(point, m.MultiplyVector(way).normalized, new Vector2(Vector3.Dot(inner + way * radius, u) / tile.x, Vector3.Dot(inner + way * radius, v) / tile.y));
+                }
+            }
+
+            Vector3 faceNormal = m.MultiplyVector(normal);
+            for (int j = 0; j < rows - 1; j++)
+            {
+                for (int i = 0; i < columns - 1; i++)
+                {
+                    int a = first + j * columns + i, b = a + 1, c = b + columns, d = a + columns;
+                    if (Vector3.Dot(Vector3.Cross(positions[b] - positions[a], positions[d] - positions[a]), faceNormal) >= 0f)
+                    {
+                        Triangle(a, b, c);
+                        Triangle(a, c, d);
+                    }
+                    else
+                    {
+                        Triangle(a, c, b);
+                        Triangle(a, d, c);
+                    }
+                }
+            }
+        }
+
+        Face(Vector3.right, Vector3.forward, Vector3.up);
+        Face(Vector3.left, Vector3.forward, Vector3.up);
+        Face(Vector3.up, Vector3.right, Vector3.forward);
+        Face(Vector3.down, Vector3.right, Vector3.forward);
+        Face(Vector3.forward, Vector3.right, Vector3.up);
+        Face(Vector3.back, Vector3.right, Vector3.up);
+    }
+
+    public void RoundedBox(Vector3 center, Vector3 size, float radius, int segments, Vector2 tile)
+    {
+        RoundedBox(Matrix4x4.Translate(center), size, radius, segments, tile);
+    }
+
+    // A flat ring, facing along normal.
+    public void Annulus(Vector3 center, Vector3 normal, Vector3 up, float inner, float outer, int segments, Vector2 tile)
+    {
+        Vector3 right = Vector3.Cross(up, normal).normalized;
+        up = Vector3.Cross(normal, right).normalized;
+        for (int i = 0; i < segments; i++)
+        {
+            float a0 = i * Mathf.PI * 2f / segments, a1 = (i + 1) * Mathf.PI * 2f / segments;
+            Vector3 d0 = right * Mathf.Cos(a0) + up * Mathf.Sin(a0), d1 = right * Mathf.Cos(a1) + up * Mathf.Sin(a1);
+            QuadFacing(center + d0 * inner, center + d1 * inner, center + d1 * outer, center + d0 * outer, normal, right, up, tile);
+        }
+    }
+
+    // The rubber round a window: square on the wall side, with the corners of the opening rounded off.
+    public void Gasket(Vector3 center, Vector3 normal, Vector3 up, float width, float height, float border, float radius, float proud, Vector2 tile)
+    {
+        const int corners = 4, steps = 5;
+        Vector3 right = Vector3.Cross(up, normal).normalized;
+        Vector3 At(float x, float y, float lift) => center + right * x + up * y + normal * lift;
+        float w = width / 2f, h = height / 2f, ow = w + border, oh = h + border;
+
+        var inner = new List<Vector3>();
+        var outer = new List<Vector3>();
+        float[] signX = { 1f, -1f, -1f, 1f }, signY = { 1f, 1f, -1f, -1f };
+        for (int c = 0; c < corners; c++)
+        {
+            float start = c * Mathf.PI / 2f;
+            for (int i = 0; i <= steps; i++)
+            {
+                float a = start + i * Mathf.PI / 2f / steps;
+                float x = signX[c] * (w - radius) + Mathf.Cos(a) * radius, y = signY[c] * (h - radius) + Mathf.Sin(a) * radius;
+                inner.Add(At(x, y, proud));
+            }
+            outer.Add(At(signX[c] * ow, signY[c] * oh, proud));
+        }
+
+        int ring = inner.Count;
+        for (int c = 0; c < corners; c++)
+        {
+            int firstInCorner = c * (steps + 1);
+            for (int i = 0; i < steps; i++)
+                QuadFacing(outer[c], inner[firstInCorner + i], inner[firstInCorner + i + 1], inner[firstInCorner + i + 1], normal, right, up, tile);
+
+            int next = (c + 1) % corners, lastHere = firstInCorner + steps, firstNext = next * (steps + 1);
+            QuadFacing(outer[c], inner[lastHere], inner[firstNext], outer[next], normal, right, up, tile);
+            QuadFacing(outer[c], outer[next], outer[next] - normal * proud, outer[c] - normal * proud, (outer[c] + outer[next]) / 2f - center, right, up, tile);
+        }
+
+        // The lip going back into the opening.
+        for (int i = 0; i < ring; i++)
+        {
+            Vector3 a = inner[i], b = inner[(i + 1) % ring];
+            QuadFacing(a, b, b - normal * 0.05f, a - normal * 0.05f, center - (a + b) / 2f, right, up, tile);
         }
     }
 

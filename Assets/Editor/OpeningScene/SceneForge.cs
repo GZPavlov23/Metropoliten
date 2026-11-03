@@ -35,14 +35,16 @@ public static class SceneForge
     static Dictionary<string, (string texture, Color tint)> surfaces;
     static Dictionary<string, float> lightmapScales;
     static HashSet<string> realtimeLit;
+    static bool everythingRealtimeLit;
     static Dictionary<string, MeshKit> kits;
 
     // Scene-wide lightmap scales are merged over the defaults. Baked Lit ignores real-time lights,
     // so any surface one has to reach is named in realtimeLitSurfaces and gets Simple Lit instead.
     public static void Begin(string rootDir, Dictionary<string, (string texture, Color tint)> sceneSurfaces,
-        Dictionary<string, float> sceneLightmapScales = null, IEnumerable<string> realtimeLitSurfaces = null)
+        Dictionary<string, float> sceneLightmapScales = null, IEnumerable<string> realtimeLitSurfaces = null, bool allRealtimeLit = false)
     {
         RootDir = rootDir;
+        everythingRealtimeLit = allRealtimeLit;
         surfaces = sceneSurfaces;
         lightmapScales = new Dictionary<string, float>(FineLightmaps);
         foreach (KeyValuePair<string, float> scale in sceneLightmapScales ?? new Dictionary<string, float>()) lightmapScales[scale.Key] = scale.Value;
@@ -147,7 +149,7 @@ public static class SceneForge
     public static Material SurfaceMaterial(string name)
     {
         (string texture, Color tint) surface = surfaces.TryGetValue(name, out var known) ? known : (name, Color.white);
-        string shader = realtimeLit.Contains(name) ? "Universal Render Pipeline/Simple Lit" : "Universal Render Pipeline/Baked Lit";
+        string shader = everythingRealtimeLit || realtimeLit.Contains(name) ? "Universal Render Pipeline/Simple Lit" : "Universal Render Pipeline/Baked Lit";
         Material material = LoadOrCreateMaterial(name, shader);
         material.SetTexture("_BaseMap", AssetDatabase.LoadAssetAtPath<Texture2D>(TextureForge.Path(surface.texture)));
         material.SetColor("_BaseColor", surface.tint);
@@ -296,7 +298,6 @@ public static class SceneForge
         camera.fieldOfView = 68f;
         camera.nearClipPlane = 0.05f;
         camera.farClipPlane = 60f;
-        camera.allowMSAA = false;
         go.AddComponent<AudioListener>();
         return camera;
     }
@@ -494,7 +495,7 @@ public static class SceneForge
     }
 
     // The conversation box, the talk prompt and the fade: everything on screen in every scene.
-    public static GameUi BuildGameUi(string scriptPath)
+    public static GameUi BuildGameUi(string scriptPath, string card = null)
     {
         var canvasGo = new GameObject("GameUI");
         canvasGo.AddComponent<UnityEngine.Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
@@ -530,6 +531,12 @@ public static class SceneForge
 
         TMP_Text prompt = LowerText("Prompt", canvasGo.transform, new Vector2(0f, 200f), new Vector2(500f, 44f), 28f, TextAlignmentOptions.Center);
 
+        // Held up over the scene, a little crooked, the way a hand holds a piece of paper.
+        RectTransform pictureRect = UiChild("Picture", panelRect, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 715f), new Vector2(0f, 590f));
+        pictureRect.localEulerAngles = new Vector3(0f, 0f, -1.4f);
+        var picture = pictureRect.gameObject.AddComponent<RawImage>();
+        picture.raycastTarget = false;
+
         RectTransform fadeRect = UiChild("Fade", canvasGo.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
         var black = fadeRect.gameObject.AddComponent<Image>();
         black.color = Color.black;
@@ -544,8 +551,19 @@ public static class SceneForge
         dialogue.replyTexts = replies;
         dialogue.hintText = hint;
         dialogue.promptText = prompt;
+        dialogue.picture = picture;
 
-        return new GameUi { Canvas = canvasGo.transform, Dialogue = dialogue, Fade = fadeRect.gameObject.AddComponent<ScreenFade>() };
+        var fade = fadeRect.gameObject.AddComponent<ScreenFade>();
+        if (card != null)
+        {
+            RectTransform cardRect = UiChild("Card", fadeRect, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            fade.card = UiText("Card", cardRect, 44f, TextAlignmentOptions.Center);
+            fade.card.text = card;
+            fade.card.characterSpacing = 26f;
+            fade.card.color = new Color(0.78f, 0.77f, 0.72f, 0f);
+        }
+
+        return new GameUi { Canvas = canvasGo.transform, Dialogue = dialogue, Fade = fade };
     }
 
     // A trigger that shows one line from the script when the player walks into it.

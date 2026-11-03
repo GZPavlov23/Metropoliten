@@ -146,7 +146,7 @@ public class GameMenu : MonoBehaviour
 
         string[] names = { "Button_Resume", "Button_PauseSettings", "Button_QuitToMenu", "Button_QuitGame" };
         string[] texts = { "RESUME", "SETTINGS", "QUIT TO MENU", "QUIT GAME" };
-        Action[] actions = { () => SetPaused(false), OpenSettings, () => Leave(TitleScene), QuitGame };
+        Action[] actions = { () => SetPaused(false), OpenSettings, QuitToTitle, QuitGame };
         MenuKit.Label(pauseScreen.transform, "Esc   Resume", new Vector2(LeftMargin, HintY), new Vector2(400f, 30f), 18f, MenuKit.Faint, 2f);
 
         var column = new List<Selectable>();
@@ -425,8 +425,15 @@ public class GameMenu : MonoBehaviour
         group.alpha = to;
     }
 
+    void QuitToTitle()
+    {
+        if (ShiftChecklist.Current != null) ShiftChecklist.Current.Save();
+        Leave(TitleScene);
+    }
+
     void QuitGame()
     {
+        if (ShiftChecklist.Current != null) ShiftChecklist.Current.Save();
         Application.Quit();
 #if UNITY_EDITOR
         UnityEditor.EditorApplication.isPlaying = false;

@@ -115,16 +115,10 @@ public static partial class TextureForge
     public const string TextureDir = "Assets/Art/Generated/Textures";
     public const int BinderSpines = 8;
 
-    // The middle of each painted eye on the clerk's atlas.
-    public static readonly Vector2 ClerkEyeA = new Vector2(95f / 1024f, 1f - 102f / 1024f);
-    public static readonly Vector2 ClerkEyeB = new Vector2(160f / 1024f, 1f - 102f / 1024f);
 
     const string ConcretePhoto = "Assets/Art/Textures/ConcreteWall006/concrete_wall_006_diff_2k.jpg";
     const string LinoleumPhoto = "Assets/Art/Textures/OldLinoleumFlooring01/old_linoleum_flooring_01_diff_2k.jpg";
     const string FontPath = "Assets/TextMesh Pro/Fonts/LiberationSans.ttf";
-    const string ClerkAtlas = "Assets/Art/Mixamo_NPC/Clerk_OrdinaryMan/OrdinaryManTexture_1024x1024.png";
-    const string AdultAtlas = "Assets/Art/Mixamo_NPC/Waiting1_AdultMan/ADULT_Texture_HIGHRES.jpg";
-    const string YoungAtlas = "Assets/Art/Mixamo_NPC/Waiting2_YoungMan/Texture_HIGHRES.png";
 
     static Canvas concrete;
     static float concreteMean;
@@ -178,9 +172,6 @@ public static partial class TextureForge
         Write("T_Timetable", Timetable());
         Write("T_SignFire", Banner("ПОЖАРЕН КРАН", 512, 176, Rgb(150, 36, 28), Rgb(232, 226, 208), 44));
 
-        Write("T_NpcClerk", ClerkSuit());
-        Write("T_NpcAdult", AdultCoat());
-        Write("T_NpcYoung", YoungJacket());
         ImportWritten();
     }
 
@@ -205,7 +196,7 @@ public static partial class TextureForge
         importer.sRGBTexture = true;
         importer.mipmapEnabled = true;
         importer.filterMode = FilterMode.Bilinear;
-        importer.anisoLevel = 0;
+        importer.anisoLevel = name == "T_Road" || name == "T_Slabs" || name == "T_StreetEast" || name == "T_Verge" ? 8 : 0;
         importer.wrapMode = isSurface ? TextureWrapMode.Repeat : TextureWrapMode.Clamp;
         importer.textureCompression = TextureImporterCompression.CompressedHQ;
         importer.SaveAndReimport();
@@ -726,8 +717,8 @@ public static partial class TextureForge
             }
         }
 
-        Line(Rgb(150, 44, 36), new Vector2(40f, 70f), new Vector2(120f, 110f), new Vector2(200f, 170f), new Vector2(280f, 170f), new Vector2(360f, 230f), new Vector2(470f, 280f));
-        if (extraStop) Line(Rgb(150, 44, 36), new Vector2(415f, 255f));
+        Line(Rgb(150, 44, 36), new Vector2(40f, 70f), new Vector2(120f, 110f), new Vector2(200f, 170f), new Vector2(280f, 170f), new Vector2(345f, 216f), new Vector2(395f, 240f), new Vector2(470f, 280f));
+        if (extraStop) Line(Rgb(150, 44, 36), new Vector2(432f, 260f));
         Line(Rgb(44, 72, 120), new Vector2(60f, 290f), new Vector2(140f, 240f), new Vector2(200f, 170f), new Vector2(240f, 100f), new Vector2(330f, 60f));
         Line(Rgb(176, 140, 48), new Vector2(280f, 170f), new Vector2(340f, 110f), new Vector2(430f, 90f));
         return Grimed(canvas, 0.45f);
@@ -818,120 +809,5 @@ public static partial class TextureForge
     static bool InPixels(int x, int y, int xMin, int yMinFromTop, int xMax, int yMaxFromTop, int size)
     {
         return x >= xMin && x <= xMax && size - 1 - y >= yMinFromTop && size - 1 - y <= yMaxFromTop;
-    }
-
-    // UV coordinates below are read off the 1024px atlas, measured from its top-left corner.
-    static Canvas ClerkSuit()
-    {
-        Canvas atlas = LoadAtlas(ClerkAtlas);
-        int s = atlas.Width;
-        Color jacket = Rgb(60, 58, 58), trousers = Rgb(50, 48, 48), shirt = Rgb(206, 204, 194), skinShift = new Color(0.94f, 0.88f, 0.82f);
-        Color greyHair = Rgb(112, 108, 104), scalp = Rgb(204, 156, 122);
-
-        for (int y = 0; y < s; y++)
-        {
-            for (int x = 0; x < s; x++)
-            {
-                Color c = atlas[x, y];
-                if (c.r > 0.97f && c.g > 0.97f && c.b > 0.97f) continue;
-
-                bool denim = c.b > c.r * 1.25f;
-                bool sleeveIsland = InPixels(x, y, 618, 30, 750, 290, s) || InPixels(x, y, 0, 585, 140, 835, s);
-                bool torsoIsland = InPixels(x, y, 425, 25, 618, 315, s) || InPixels(x, y, 136, 540, 440, 835, s);
-                bool armStrip = InPixels(x, y, 90, 850, 668, 1024, s);
-                bool neck = c.r > c.b * 1.4f && (InPixels(x, y, 245, 540, 330, 600, s) || InPixels(x, y, 480, 30, 585, 60, s));
-
-                // Grey at the sides and back of the head, bald on top.
-                bool scalpArea = InPixels(x, y, 0, 0, 270, 505, s) && !InPixels(x, y, 62, 74, 200, 250, s);
-                bool brownHair = scalpArea && c.grayscale < 0.42f;
-                bool crown = InPixels(x, y, 30, 0, 230, 74, s) || InPixels(x, y, 30, 255, 230, 342, s);
-
-                if (denim) atlas[x, y] = Reshade(c, 0.46f, trousers);
-                else if (neck) atlas[x, y] = Opaque(c * skinShift);
-                else if (sleeveIsland || torsoIsland || armStrip) atlas[x, y] = Reshade(c.grayscale > 0.45f ? c : new Color(0.7f, 0.7f, 0.7f), 0.72f, jacket);
-                else if (brownHair) atlas[x, y] = Opaque((crown ? scalp : greyHair) * Mathf.Lerp(0.9f, 1.05f, Hash(x, y, 9)));
-                else atlas[x, y] = Opaque(c * skinShift);
-            }
-        }
-
-        // Lapels, shirt front and tie, on the lower torso island: that one is the chest.
-        void FromTop(int x0, int y0, int x1, int y1, Color color) => atlas.FillRect(x0, s - y1, x1 - x0, y1 - y0, color);
-        const int middle = 288, vTop = 576, vBottom = 742;
-        for (int yTop = vTop; yTop < vBottom; yTop++)
-        {
-            int half = Mathf.RoundToInt(Mathf.Lerp(52f, 2f, (yTop - (float)vTop) / (vBottom - vTop)));
-            FromTop(middle - half - 7, yTop, middle + half + 7, yTop + 1, Rgb(34, 32, 32));
-            FromTop(middle - half, yTop, middle + half, yTop + 1, shirt);
-        }
-        for (int yTop = vTop + 2; yTop < vBottom - 4; yTop++)
-        {
-            int half = yTop < vTop + 18 ? 11 : Mathf.RoundToInt(Mathf.Lerp(6f, 13f, (yTop - vTop - 18f) / (vBottom - vTop - 22f)));
-            bool stripe = (yTop / 9) % 2 == 0;
-            FromTop(middle - half, yTop, middle + half, yTop + 1, stripe ? Rgb(92, 44, 42) : Rgb(142, 118, 96));
-        }
-
-        BleedIntoBackground(atlas, c => c.r > 0.97f && c.g > 0.97f && c.b > 0.97f, 10);
-        Dirty(atlas, 0.28f);
-        return atlas;
-    }
-
-    static Canvas AdultCoat()
-    {
-        Canvas atlas = LoadAtlas(AdultAtlas);
-        int s = atlas.Width;
-        Color coat = Rgb(70, 60, 50), trousers = Rgb(50, 48, 46), collar = Rgb(150, 144, 130), boots = Rgb(30, 24, 22), hair = Rgb(74, 68, 62);
-
-        for (int y = 0; y < s; y++)
-        {
-            for (int x = 0; x < s; x++)
-            {
-                Color c = atlas[x, y];
-                if (c.r + c.g + c.b < 0.1f) continue;
-
-                float u = (float)x / s, vTop = 1f - (float)y / s;
-                bool sleeve = u < 0.215f && vTop > 0.6f;
-                if (c.r > 0.6f && c.g < 0.45f && c.b < 0.15f) atlas[x, y] = Reshade(c, 0.42f, coat);
-                else if (c.g > c.r * 1.1f && c.g > c.b * 1.3f) atlas[x, y] = Reshade(c, 0.26f, trousers);
-                else if (sleeve) atlas[x, y] = Reshade(c, 0.86f, coat);
-                else if (vTop < 0.09f && u > 0.45f) atlas[x, y] = Reshade(c, 0.8f, collar);
-                else if (vTop > 0.8f && u > 0.14f && u < 0.42f) atlas[x, y] = Reshade(c, 0.18f, boots);
-                else if (c.r < 0.62f && c.g < 0.45f && vTop < 0.4f && u < 0.4f) atlas[x, y] = Reshade(c, 0.4f, hair);
-                else atlas[x, y] = Opaque(c * new Color(0.92f, 0.85f, 0.78f));
-            }
-        }
-        BleedIntoBackground(atlas, c => c.r + c.g + c.b < 0.1f, 10);
-        Dirty(atlas, 0.3f);
-        return atlas;
-    }
-
-    static Canvas YoungJacket()
-    {
-        Canvas atlas = LoadAtlas(YoungAtlas);
-        int s = atlas.Width;
-        Color jacket = Rgb(58, 64, 70), trousers = Rgb(44, 42, 44), shirt = Rgb(150, 146, 136), boots = Rgb(34, 26, 24), hair = Rgb(30, 24, 20), belt = Rgb(40, 32, 26);
-
-        for (int y = 0; y < s; y++)
-        {
-            for (int x = 0; x < s; x++)
-            {
-                Color c = atlas[x, y];
-                if (c.r + c.g + c.b < 0.1f) continue;
-
-                float u = (float)x / s, vTop = 1f - (float)y / s;
-                bool green = c.g > c.r * 1.2f && c.g > c.b * 1.5f;
-                bool blue = c.b > c.r * 1.8f && c.b > 0.35f;
-                bool red = c.r > c.g * 1.7f && c.r > c.b * 1.7f;
-                bool white = c.r > 0.82f && c.g > 0.82f && c.b > 0.8f;
-
-                if (green) atlas[x, y] = Reshade(c, 0.42f, vTop > 0.68f ? trousers : jacket);
-                else if (blue && u < 0.4f && vTop < 0.32f) atlas[x, y] = Reshade(c, 0.3f, hair);
-                else if (red) atlas[x, y] = Reshade(c, 0.32f, vTop > 0.8f ? boots : belt);
-                else if (white) atlas[x, y] = Reshade(c, 0.92f, u < 0.22f ? jacket : shirt);
-                else atlas[x, y] = Opaque(c * new Color(0.92f, 0.85f, 0.78f));
-            }
-        }
-        BleedIntoBackground(atlas, c => c.r + c.g + c.b < 0.1f, 10);
-        Dirty(atlas, 0.3f);
-        return atlas;
     }
 }

@@ -1,6 +1,7 @@
 using System.Collections;
 using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 
 // Runs a scene's script file: conversations the player reads and answers, and passing remarks.
 public class DialogueBox : MonoBehaviour
@@ -17,6 +18,9 @@ public class DialogueBox : MonoBehaviour
     public TMP_Text[] replyTexts;
     public TMP_Text hintText;
     public TMP_Text promptText;
+
+    [Tooltip("Where a picture from the script is held up while it's talked about.")]
+    public RawImage picture;
 
     [Header("Colours")]
     public Color playerColor = new Color(0.72f, 0.74f, 0.7f);
@@ -47,6 +51,7 @@ public class DialogueBox : MonoBehaviour
     {
         script = new ConversationScript(scriptFile);
         panel.alpha = 0f;
+        ShowPicture("");
         HidePrompt();
         ShowReplies(null, 0);
     }
@@ -105,13 +110,27 @@ public class DialogueBox : MonoBehaviour
         while (index >= 0 && index < script.Count)
         {
             ConversationScript.Step step = script[index];
-            if (step.Jump != null)
+            if (step.OnlyIf != null && !SaveSystem.HasFlag(step.OnlyIf))
+            {
+                index++;
+            }
+            else if (step.Jump != null)
             {
                 index = script.Find(step.Jump);
+            }
+            else if (step.Remember != null)
+            {
+                SaveSystem.SetFlag(step.Remember);
+                index++;
             }
             else if (step.Sound != null)
             {
                 SoundDirector.Instance.Cue(step.Sound);
+                index++;
+            }
+            else if (step.Picture != null)
+            {
+                ShowPicture(step.Picture);
                 index++;
             }
             else if (step.Replies != null)
@@ -132,7 +151,21 @@ public class DialogueBox : MonoBehaviour
 
         continueText.enabled = false;
         yield return FadePanel(0f, 0.3f);
+        ShowPicture("");
         InConversation = false;
+    }
+
+    // Keeps its height, whatever shape the picture is.
+    void ShowPicture(string name)
+    {
+        picture.enabled = name.Length > 0;
+        if (!picture.enabled) return;
+
+        Texture2D texture = ConversationScript.LoadPicture(name);
+        picture.texture = texture;
+        Vector2 size = picture.rectTransform.sizeDelta;
+        size.x = size.y * texture.width / texture.height;
+        picture.rectTransform.sizeDelta = size;
     }
 
     IEnumerator Say(string speaker, string text)

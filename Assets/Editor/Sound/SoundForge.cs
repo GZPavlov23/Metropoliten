@@ -25,6 +25,7 @@ public static partial class SoundForge
         ForgeStation();
         ForgePlayer();
         ForgeTrain();
+        ForgeShift2();
 
         AssetDatabase.Refresh();
         foreach (string name in written) ConfigureImport(name);

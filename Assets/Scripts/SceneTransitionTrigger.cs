@@ -11,6 +11,9 @@ public class SceneTransitionTrigger : MonoBehaviour
     [Tooltip("Optional: fades to black before the scene changes.")]
     public ScreenFade fade;
 
+    [Tooltip("A moment to stand there before the fade starts.")]
+    public float delay;
+
     bool leaving;
 
     void OnTriggerEnter(Collider other)
@@ -27,6 +30,7 @@ public class SceneTransitionTrigger : MonoBehaviour
 
     IEnumerator FadeAndLoad()
     {
+        if (delay > 0f) yield return new WaitForSeconds(delay);
         if (fade != null)
         {
             SoundDirector.Instance.SinkScene(fade.fadeOutSeconds);

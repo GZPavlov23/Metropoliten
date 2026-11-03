@@ -61,7 +61,13 @@ public class RestHandsOnThighs : MonoBehaviour
         Vector3 palmOnThigh = Vector3.Lerp(hip, knee, alongThigh) + up * (hand.thighTop + palmHeight) + inwards * inset;
         Vector3 wristTarget = palmOnThigh - along * palmLength;
 
-        // Two bones reaching for a point: the rule of cosines gives where the elbow has to be.
+        Reach(hand, wristTarget, transform.TransformDirection(hand.elbow));
+        hand.wrist.rotation = Quaternion.LookRotation(along, -up) * Quaternion.Inverse(Quaternion.LookRotation(hand.fingers, hand.palm));
+    }
+
+    // Two bones reaching for a point: the rule of cosines gives where the elbow has to be.
+    public static void Reach(Hand hand, Vector3 wristTarget, Vector3 elbowWay)
+    {
         Vector3 shoulder = hand.upperArm.position;
         float upperLength = Vector3.Distance(shoulder, hand.lowerArm.position);
         float lowerLength = Vector3.Distance(hand.lowerArm.position, hand.wrist.position);
@@ -69,11 +75,10 @@ public class RestHandsOnThighs : MonoBehaviour
         float distance = Mathf.Min(reach.magnitude, upperLength + lowerLength - 0.001f);
         float elbowAlong = (upperLength * upperLength - lowerLength * lowerLength + distance * distance) / (2f * distance);
         float elbowOut = Mathf.Sqrt(Mathf.Max(upperLength * upperLength - elbowAlong * elbowAlong, 0f));
-        Vector3 bend = Vector3.ProjectOnPlane(transform.TransformDirection(hand.elbow), reach).normalized;
+        Vector3 bend = Vector3.ProjectOnPlane(elbowWay, reach).normalized;
         Vector3 elbow = shoulder + reach.normalized * elbowAlong + bend * elbowOut;
 
         hand.upperArm.rotation = Quaternion.FromToRotation(hand.lowerArm.position - shoulder, elbow - shoulder) * hand.upperArm.rotation;
         hand.lowerArm.rotation = Quaternion.FromToRotation(hand.wrist.position - hand.lowerArm.position, wristTarget - elbow) * hand.lowerArm.rotation;
-        hand.wrist.rotation = Quaternion.LookRotation(along, -up) * Quaternion.Inverse(Quaternion.LookRotation(hand.fingers, hand.palm));
     }
 }

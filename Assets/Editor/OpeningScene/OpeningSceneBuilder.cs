@@ -16,9 +16,7 @@ public static partial class OpeningSceneBuilder
     const string RootDir = "Assets/Art/Generated/Opening";
     const string AnimatorDir = RootDir + "/Animators";
 
-    const string ClerkModel = "Assets/Art/Mixamo_NPC/Clerk_OrdinaryMan/ordinaryMan.fbx";
-    const string AdultModel = "Assets/Art/Mixamo_NPC/Waiting1_AdultMan/AdultMan___.fbx";
-    const string YoungModel = "Assets/Art/Mixamo_NPC/Waiting2_YoungMan/YoungMan___.fbx";
+    public const string ClerkModel = "Assets/Art/Mixamo_NPC/Clerk_OrdinaryMan/ordinaryMan.fbx";
     const string IdleClip = "Assets/Art/Mixamo_NPC/Waiting1_AdultMan/Idle.fbx";
     const string SittingClip = "Assets/Art/Mixamo_NPC/Waiting1_AdultMan/SittingIdle.fbx";
 
@@ -35,12 +33,6 @@ public static partial class OpeningSceneBuilder
 
     // Walls run this far past their corners and joins, so the edge of a lightmap chart never lands on a visible seam.
     const float WallOverlap = 0.1f;
-
-    // Big heads and hands on thin bodies are half of what makes these people unsettling.
-    const float HeadScale = 1.28f, HandScale = 1.3f;
-
-    // The models' arms stop short of their thighs when they sit, about a fifth under normal length.
-    const float SeatedArmScale = 1.2f;
 
     static readonly float[] RibZ = { 2.87f, 5.73f };
     static readonly ArchProfile Arch = new ArchProfile(0f, Width, Spring, Rise);
@@ -64,7 +56,7 @@ public static partial class OpeningSceneBuilder
         { "Folders", ("T_Folder", Color.white) },
         { "DoorGlass", ("T_DoorGlass", Color.white) },
         { "Bottle", ("T_Paper", new Color(0.2f, 0.12f, 0.05f)) },
-        { "Spectacles", ("T_Metal", new Color(0.22f, 0.2f, 0.18f)) },
+        { "Spectacles", ("T_Metal", new Color(0.42f, 0.36f, 0.22f)) },
         { "RedPaint", ("T_RedPaint", Color.white) },
         { "GateSteel", ("T_Metal", new Color(0.5f, 0.5f, 0.5f)) },
     };
@@ -83,11 +75,10 @@ public static partial class OpeningSceneBuilder
         Directory.CreateDirectory(AnimatorDir);
 
         ConfigureCharacter(ClerkModel);
-        ConfigureCharacter(AdultModel);
-        ConfigureCharacter(YoungModel);
         ConfigureClip(IdleClip);
         ConfigureClip(SittingClip);
         TextureForge.ForgeOpening();
+        TextureForge.ForgeCast();
         RetroLookSetup.Apply();
 
         Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
@@ -606,39 +597,60 @@ public static partial class OpeningSceneBuilder
         AnimationClip idle = LoadClip(IdleClip), sitting = LoadClip(SittingClip);
         RuntimeAnimatorController standing = LoopingController("Idle", idle), seated = LoopingController("Sitting", sitting);
 
-        GameObject clerk = SpawnCharacter("Clerk", ClerkModel, "T_NpcClerk", standing, 1.78f, parent);
-        clerk.transform.SetPositionAndRotation(new Vector3(OpenWindowX, 0f, Length + WallThickness + 0.42f), Quaternion.Euler(0f, 180f, 0f));
+        GameObject clerk = CharacterForge.Spawn(Cast.Clerk, "Clerk", standing, parent, false);
+        var hands = clerk.AddComponent<HandsOnCounter>();
+        hands.left = HandInBindPose(clerk, clerk.GetComponent<Animator>(), true);
+        hands.right = HandInBindPose(clerk, clerk.GetComponent<Animator>(), false);
+
+        float clerkZ = Length + WallThickness + 0.42f;
+        clerk.transform.SetPositionAndRotation(new Vector3(OpenWindowX, 0f, clerkZ), Quaternion.Euler(0f, 180f, 0f));
+        hands.leftPalm = new Vector3(OpenWindowX + 0.15f, WindowSill, clerkZ - 0.33f);
+        hands.rightPalm = new Vector3(OpenWindowX - 0.13f, WindowSill, clerkZ - 0.36f);
         Pose(clerk);
         clerk.transform.position += Vector3.down * MeasurePose(clerk).min.y;
-        AddSpectacles(clerk);
         BakeShadowProxy(clerk, parent);
 
-        SpawnSeated("Waiting_Adult", AdultModel, "T_NpcAdult", seated, 1.78f, 3.95f, parent);
-        SpawnSeated("Waiting_Young", YoungModel, "T_NpcYoung", seated, 1.72f, 6.75f, parent);
+        SpawnSeated(Cast.WaitingMan, "Waiting_Adult", seated, 0.42f, 3.95f, 90f, parent);
+        SpawnSeated(Cast.MitkoOffDuty, "Waiting_Young", seated, 0.42f, 6.75f, 90f, parent);
         return parent;
     }
 
-    static void SpawnSeated(string name, string model, string texture, RuntimeAnimatorController controller, float height, float z, Transform parent)
+    public static AnimationClip StandingClip => LoadClip(IdleClip);
+    public static AnimationClip SittingClipAsset => LoadClip(SittingClip);
+
+    // A controller the Opening has already made, for another scene that wants the same pose.
+    public static RuntimeAnimatorController Controller(string name)
     {
-        GameObject character = SpawnCharacter(name, model, texture, controller, height, parent);
-        Animator animator = character.GetComponent<Animator>();
+        return AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>($"{AnimatorDir}/AC_{name}.controller");
+    }
 
-        // Read while the character still stands in its bind pose, with straight arms and palms facing down.
-        var hands = character.AddComponent<RestHandsOnThighs>();
-        hands.left = HandInBindPose(character, animator, true);
-        hands.right = HandInBindPose(character, animator, false);
+    public static GameObject SpawnSeated(Look look, string name, RuntimeAnimatorController controller, float seatX, float z, float yaw, Transform parent, bool realtimeLit = false, float seatHeight = SeatHeight)
+    {
+        GameObject character = CharacterForge.Spawn(look, name, controller, parent, realtimeLit);
+        SitDown(character, seatX, z, yaw, seatHeight, true);
+        BakeShadowProxy(character, parent);
+        return character;
+    }
 
-        foreach (RestHandsOnThighs.Hand hand in new[] { hands.left, hands.right })
-        {
-            hand.upperArm.localScale = Vector3.one * SeatedArmScale;
-            hand.wrist.localScale = Vector3.one * (HandScale / SeatedArmScale);
-        }
-
-        Seat(character, 0.42f, z);
+    // Puts someone in their seat, with the hands in their lap. They need the sitting animation on, and to be in their bind pose.
+    public static RestHandsOnThighs SitDown(GameObject character, float seatX, float z, float yaw, float seatHeight, bool blocker)
+    {
+        RestHandsOnThighs hands = FitHands(character);
+        Seat(character, seatX, z, yaw, seatHeight, blocker);
         hands.left.thighTop = ThighTop(character, hands.left, hands.alongThigh);
         hands.right.thighTop = ThighTop(character, hands.right, hands.alongThigh);
         hands.Rest();
-        BakeShadowProxy(character, parent);
+        return hands;
+    }
+
+    // Read while the character still stands in its bind pose, with straight arms and palms facing down.
+    public static RestHandsOnThighs FitHands(GameObject character)
+    {
+        Animator animator = character.GetComponent<Animator>();
+        var hands = character.AddComponent<RestHandsOnThighs>();
+        hands.left = HandInBindPose(character, animator, true);
+        hands.right = HandInBindPose(character, animator, false);
+        return hands;
     }
 
     static RestHandsOnThighs.Hand HandInBindPose(GameObject character, Animator animator, bool left)
@@ -725,42 +737,8 @@ public static partial class OpeningSceneBuilder
         return top;
     }
 
-    static GameObject SpawnCharacter(string name, string model, string texture, RuntimeAnimatorController controller, float height, Transform parent)
-    {
-        var character = (GameObject)PrefabUtility.InstantiatePrefab(AssetDatabase.LoadAssetAtPath<GameObject>(model), parent);
-        character.name = name;
-
-        Material material = LoadOrCreateMaterial(texture, "Universal Render Pipeline/Baked Lit");
-        material.SetTexture("_BaseMap", AssetDatabase.LoadAssetAtPath<Texture2D>(TextureForge.Path(texture)));
-        EditorUtility.SetDirty(material);
-
-        foreach (Renderer renderer in character.GetComponentsInChildren<Renderer>())
-        {
-            // The clerk's file still carries the modeller's flat reference-image planes.
-            if (!(renderer is SkinnedMeshRenderer))
-            {
-                renderer.enabled = false;
-                continue;
-            }
-            var materials = new Material[renderer.sharedMaterials.Length];
-            for (int i = 0; i < materials.Length; i++) materials[i] = material;
-            renderer.sharedMaterials = materials;
-        }
-        character.transform.localScale = Vector3.one * (height / MeasurePose(character).size.y);
-
-        Animator animator = character.GetComponent<Animator>();
-        animator.runtimeAnimatorController = controller;
-        animator.applyRootMotion = false;
-        animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
-
-        animator.GetBoneTransform(HumanBodyBones.Head).localScale = Vector3.one * HeadScale;
-        animator.GetBoneTransform(HumanBodyBones.LeftHand).localScale = Vector3.one * HandScale;
-        animator.GetBoneTransform(HumanBodyBones.RightHand).localScale = Vector3.one * HandScale;
-        return character;
-    }
-
     // Skinned renderer bounds don't follow the pose or the skeleton's scale, so these read the real vertices.
-    static List<Vector3> PosedVertices(GameObject character)
+    public static List<Vector3> PosedVertices(GameObject character)
     {
         var points = new List<Vector3>();
         var baked = new Mesh();
@@ -774,14 +752,14 @@ public static partial class OpeningSceneBuilder
     }
 
     // Evaluates the real Animator, so what gets measured is what plays in the game.
-    static void Pose(GameObject character)
+    public static void Pose(GameObject character)
     {
         Animator animator = character.GetComponent<Animator>();
         animator.Rebind();
         animator.Update(0f);
     }
 
-    static Bounds MeasurePose(GameObject character)
+    public static Bounds MeasurePose(GameObject character)
     {
         List<Vector3> points = PosedVertices(character);
         var bounds = new Bounds(points[0], Vector3.zero);
@@ -791,7 +769,7 @@ public static partial class OpeningSceneBuilder
 
     // The NPCs never leave their spot, so a copy of each posed body goes into the bake as a shadow caster:
     // real contact shadows on the bench and floor for no runtime cost.
-    static void BakeShadowProxy(GameObject character, Transform parent)
+    public static void BakeShadowProxy(GameObject character, Transform parent)
     {
         var vertices = new List<Vector3>();
         var triangles = new List<int>();
@@ -821,37 +799,9 @@ public static partial class OpeningSceneBuilder
         GameObjectUtility.SetStaticEditorFlags(go, StaticEditorFlags.ContributeGI);
     }
 
-    // Where a point on the texture atlas sits on the posed body.
-    static Vector3 PointOnBody(GameObject character, Vector2 uv)
-    {
-        var baked = new Mesh();
-        foreach (SkinnedMeshRenderer renderer in character.GetComponentsInChildren<SkinnedMeshRenderer>())
-        {
-            renderer.BakeMesh(baked, true);
-            Vector2[] uvs = renderer.sharedMesh.uv;
-            Vector3[] vertices = baked.vertices;
-            int[] triangles = renderer.sharedMesh.triangles;
-            for (int i = 0; i < triangles.Length; i += 3)
-            {
-                int a = triangles[i], b = triangles[i + 1], c = triangles[i + 2];
-                Vector2 ab = uvs[b] - uvs[a], ac = uvs[c] - uvs[a], ap = uv - uvs[a];
-                float area = ab.x * ac.y - ab.y * ac.x;
-                if (Mathf.Abs(area) < 1e-9f) continue;
-                float s = (ap.x * ac.y - ap.y * ac.x) / area, t = (ab.x * ap.y - ab.y * ap.x) / area;
-                if (s < 0f || t < 0f || s + t > 1f) continue;
-                Vector3 local = vertices[a] + (vertices[b] - vertices[a]) * s + (vertices[c] - vertices[a]) * t;
-                Object.DestroyImmediate(baked);
-                return renderer.transform.TransformPoint(local);
-            }
-        }
-        Object.DestroyImmediate(baked);
-        throw new System.InvalidOperationException($"Nothing on {character.name} maps to uv {uv}");
-    }
-
     // Wire glasses, built around where the eyes actually are and carried by the head bone.
-    static void AddSpectacles(GameObject clerk)
+    public static void AddSpectacles(GameObject clerk, Vector3 eyeA, Vector3 eyeB, string name)
     {
-        Vector3 eyeA = PointOnBody(clerk, TextureForge.ClerkEyeA), eyeB = PointOnBody(clerk, TextureForge.ClerkEyeB);
         Transform head = clerk.GetComponent<Animator>().GetBoneTransform(HumanBodyBones.Head);
         Vector3 middle = (eyeA + eyeB) / 2f;
         Vector3 across = (eyeB - eyeA).normalized;
@@ -885,8 +835,8 @@ public static partial class OpeningSceneBuilder
         Rim(1f);
         kit.Tube(across * (radius - gap) + forward * 0.016f, across * (gap - radius) + forward * 0.016f, wire, 4, tile);
 
-        Mesh mesh = kit.ToMesh("Spectacles");
-        AssetDatabase.CreateAsset(mesh, $"{MeshDir}/Spectacles.asset");
+        Mesh mesh = kit.ToMesh(name);
+        AssetDatabase.CreateAsset(mesh, $"{MeshDir}/Glasses_{name}.asset");
         var go = new GameObject("Spectacles");
         go.transform.position = middle;
         go.transform.SetParent(head, true);
@@ -895,9 +845,10 @@ public static partial class OpeningSceneBuilder
     }
 
     // Measures the seated pose, then rests the underside of the body under the pelvis on the bench.
-    static void Seat(GameObject character, float seatCenterX, float z)
+    static void Seat(GameObject character, float seatCenterX, float z, float yaw, float seatHeight, bool blocker)
     {
-        character.transform.SetPositionAndRotation(Vector3.zero, Quaternion.Euler(0f, 90f, 0f));
+        Quaternion facing = Quaternion.Euler(0f, yaw, 0f);
+        character.transform.SetPositionAndRotation(Vector3.zero, facing);
         Pose(character);
         Animator animator = character.GetComponent<Animator>();
         Vector3 hips = animator.GetBoneTransform(HumanBodyBones.Hips).position;
@@ -906,15 +857,15 @@ public static partial class OpeningSceneBuilder
         foreach (Vector3 point in PosedVertices(character))
             if (new Vector2(point.x - hips.x, point.z - hips.z).magnitude < 0.16f) underside = Mathf.Min(underside, point.y);
 
-        character.transform.position = new Vector3(seatCenterX - hips.x, SeatHeight - underside, z - hips.z);
+        character.transform.position = new Vector3(seatCenterX - hips.x, seatHeight - underside, z - hips.z);
+        if (!blocker) return;
 
         // Keeps the player out of the legs and off the lap.
         var body = new GameObject(character.name + "_Blocker").AddComponent<BoxCollider>();
         body.transform.SetParent(character.transform.parent);
-        body.transform.position = new Vector3(seatCenterX + 0.22f, 0.6f, z);
+        body.transform.position = new Vector3(seatCenterX, 0.6f, z) + facing * Vector3.forward * 0.22f;
         body.size = new Vector3(0.74f, 1.2f, 0.62f);
 
-        Debug.Log($"{character.name}: scale {character.transform.localScale.x:F4}, hips {hips}, underside {underside:F3}, soles {MeasurePose(character).min.y:F3}, head scale {animator.GetBoneTransform(HumanBodyBones.Head).localScale.x:F2}");
     }
 
     static void BuildExitTrigger()
