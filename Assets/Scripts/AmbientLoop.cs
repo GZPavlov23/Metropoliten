@@ -5,6 +5,8 @@ using UnityEngine;
 [RequireComponent(typeof(AudioSource))]
 public class AmbientLoop : MonoBehaviour
 {
+    const float FadeRate = 0.2f;
+
     [Range(0f, 0.05f)]
     [Tooltip("How far from its true pitch this can start out.")]
     public float pitchSpread = 0.012f;
@@ -16,7 +18,7 @@ public class AmbientLoop : MonoBehaviour
     public float Level { get; set; } = 1f;
 
     AudioSource source;
-    float volume;
+    float volume, share = 1f, wantedShare = 1f;
 
     void Start()
     {
@@ -27,8 +29,15 @@ public class AmbientLoop : MonoBehaviour
         source.Play();
     }
 
+    // Slowly settles at a share of its usual level, for a place that's emptier than the last.
+    public void FadeTo(float level)
+    {
+        wantedShare = level;
+    }
+
     void Update()
     {
-        source.volume = volume * Level * (heardThroughHush ? 1f : SoundDirector.Presence);
+        share = Mathf.MoveTowards(share, wantedShare, FadeRate * Time.deltaTime);
+        source.volume = volume * share * Level * (heardThroughHush ? 1f : SoundDirector.Presence);
     }
 }

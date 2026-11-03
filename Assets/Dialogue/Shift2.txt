@@ -1,0 +1,353 @@
+# Everything said in Shift 2. A first draft: change anything you like.
+# The format is explained at the top of Opening.txt.
+# A conversation carries on past labels until it reaches "-> end", so every one needs an "-> end".
+#
+# The scene uses the labels briefing, vera, mitko, staff_door, locker_mine, seat, get_up, relay, back, get_up_depot,
+# clock_out, phone, old_locker, camera and map, and each can have an _again for talking to it a second time.
+# Walking into something locked uses staff_locked, cab_locked, street_closed and crossing.
+#
+# Each run uses its own labels for what's said on the way: _moving, _fast, _station and _short show one line while the
+# player drives, then _stopped or _overran once the train comes to rest. The first run's labels start bolnichna_, the
+# run to the signal's start drive_, and the run to the depot's start depot_.
+
+= briefing
+@ I_Radio
+DISPATCHER: Evening, Nikola. You look tired.
+> You can't see me.
+> I didn't sleep. -> mother
+DISPATCHER: No. Of course not. It's in your voice.
+
+= mother
+DISPATCHER: Your mother had a quiet night. You can stop worrying about that one.
+> How do you know how she is?
+> [Say nothing] -> work
+DISPATCHER: The ward sends us a note. We look after our own.
+
+= work
+DISPATCHER: Tonight you carry people. Last service, Severna to the depot, and everyone off at the end.
+DISPATCHER: Vera has the duty booth, and the log. Mitko has your locker key.
+DISPATCHER: There's a hand lamp in your locker. Bring it with you, then get in the cab.
+> Why do I need a lamp?
+> Understood. -> end
+DISPATCHER: You won't.
+-> end
+
+= intercom_again
+@ I_Radio
+DISPATCHER: You've things to do, Nikola. I can see them from here.
+-> end
+
+= camera
+NIKOLA: There's one on every pillar. They weren't on the other platform.
+-> end
+
+= camera_again
+NIKOLA: It's a camera. It's what they do.
+-> end
+
+= map
+NIKOLA: Severna. Bolnichna. Then a stop that wasn't on the map at the registry.
+-> end
+
+= map_again
+NIKOLA: Still there.
+-> end
+
+= street_closed
+NIKOLA: Chained up for the night. I've only just come down anyway.
+
+= vera
+VERA: Log's on the shelf. Don't lean on my glass.
+> You're Vera.
+> [Sign the log] -> sign
+VERA: I know who I am.
+
+= sign
+@ I_Pen
+NIKOLA: There's a name above mine. Someone's scratched it out.
+VERA: People make mistakes in that book.
+> Whose name was it?
+> [Say nothing] -> warned
+VERA: Sign your own and leave the others be.
+
+= warned
+VERA: That box on the wall hears everything you say to it.
+VERA: It doesn't hear the booth.
+VERA: If he holds you at a red tonight, stay in your seat as long as he lets you.
+> What does that mean?
+> [Say nothing] -> vera_done
+VERA: It means I've said enough.
+
+= vera_done
+VERA: Go on. Mitko's on the bench, pretending to work.
+-> end
+
+= vera_again
+VERA: Go on.
+-> end
+
+= mitko
+MITKO: You're the new one. Sit down, you're making the place look busy.
+> Nikola.
+> You were at the registry. -> registry
+MITKO: Mitko. Platforms, points, whatever's broken. Six years now.
+> You were at the registry. On the bench.
+> Good job, is it? -> job
+
+= registry
+MITKO: Me? I haven't been up top since the spring.
+NIKOLA: You sat across from me. You watched me leave.
+MITKO: Everyone looks the same under those lamps. Eat something, you've gone grey.
+
+= job
+MITKO: Easy. Turn up, do what the box says, go home. You'll be sleeping by the end of the month. Everyone does.
+> What happened to the last trainee?
+> Vera said you've got my key. -> key
+MITKO: Stoyan? Did his four shifts and got paid. Everyone gets paid.
+MITKO: Nice lad. Nervous. Kept looking at the cameras.
+
+= key
+MITKO: Here. Staff door, far end of the platform. Your name's on it, you can't miss it.
+> My name's already on a locker?
+> [Take the key] -> end
+MITKO: They're organised, I'll say that for them.
+-> end
+
+= mitko_again
+MITKO: Far end of the platform. Go on, I've got all this sitting down to do.
+-> end
+
+= staff_locked
+NIKOLA: Locked. Staff only.
+
+= staff_door
+@ I_Key
+NIKOLA: It's stiff. Nobody's been through here tonight.
+-> end
+
+= locker_mine
+@ I_Locker
+NIKOLA: My name. That label's been on here for years.
+NIKOLA: Lamp. It works.
+NIKOLA: And a photograph, taped inside the door.
+> [Look at it]
+% D_Photo
+NIKOLA: That's me. Outside the hospital.
+NIKOLA: This morning.
+-> end
+
+= locker_mine_again
+% D_Photo
+NIKOLA: This morning. I didn't tell anyone I was going.
+-> end
+
+= cab_locked
+NIKOLA: Locked. I'm not done on the platform.
+
+= seat
+@ I_Seat
+@ I_Radio
+DISPATCHER: There you are. Long one tonight.
+DISPATCHER: Bolnichna, then on to the depot. Nothing else on the line.
+> There's another stop on the platform map.
+> Understood. -> away
+DISPATCHER: There isn't.
+
+= away
+DISPATCHER: Watch your screen. Doors when they're all aboard.
+-> end
+
+= bolnichna_moving
+@ I_Radio
+DISPATCHER: Four aboard. Good. Keep them comfortable.
+
+= bolnichna_fast
+@ I_Radio
+DISPATCHER: Ease off. Fifty is plenty down here.
+
+= bolnichna_station
+@ I_Radio
+DISPATCHER: Bolnichna ahead. Stop at the board.
+
+= bolnichna_short
+@ I_Radio
+DISPATCHER: You're short of the board. Bring her up.
+
+= bolnichna_stopped
+@ I_Radio
+DISPATCHER: Third floor, isn't she? The window over the car park.
+DISPATCHER: Open your doors, Nikola.
+-> end
+
+= bolnichna_overran
+@ I_Radio
+DISPATCHER: That's past the board. They'll walk it. Open your doors.
+-> end
+
+= drive_moving
+@ I_Radio
+DISPATCHER: Good. Straight through to the depot now.
+
+= drive_fast
+@ I_Radio
+DISPATCHER: Ease off. Fifty is plenty down here.
+
+= drive_station
+@ I_Radio
+DISPATCHER: You've a red ahead. That can't be right. Bring her down.
+
+= drive_short
+@ I_Radio
+DISPATCHER: You're short of the signal. Bring her up to it.
+
+= drive_stopped
+@ I_Radio
+DISPATCHER: That signal has been green for thirty years.
+DISPATCHER: Zavodska. Well. You'd have seen it sooner or later.
+DISPATCHER: There's a release in the relay room, through the door at the far end of the platform.
+DISPATCHER: Take your lamp. Straight there, straight back. Your passengers can wait. Touch nothing else.
+> Is anyone else down here?
+> Understood. -> radio_gone
+DISPATCHER: No.
+
+= radio_gone
+@ I_Radio
+-> end
+
+= drive_overran
+@ I_Radio
+DISPATCHER: The train stopped itself, not you. That signal has been green for thirty years.
+DISPATCHER: There's a release in the relay room, through the door at the far end of the platform.
+DISPATCHER: Take your lamp. Straight there, straight back. Touch nothing else.
+-> radio_gone
+
+= get_up
+NIKOLA: Stay in your seat, she said.
+-> end
+
+= relay
+NIKOLA: Release handle. There's fresh grease on it.
+NIKOLA: Thirty years, he said.
+> [Pull it]
+-> end
+
+= relay_again
+NIKOLA: That's done. Back to the train.
+-> end
+
+= old_locker
+? found_badge -> old_locker_open
+NIKOLA: This one's been forced. The label's scratched off, same as the log.
+> [Look inside] -> old_locker_open
+> [Leave it] -> left_it
+
+= left_it
+NIKOLA: He said touch nothing.
+-> end
+
+= old_locker_open
+! found_badge
+@ I_Locker
+% D_Badge
+NIKOLA: A trainee's badge. Stoyan Petkov. Someone's cut the photo out.
+%
+NIKOLA: There's a sheet folded behind it. The registry's form. The same typing.
+NIKOLA: A list of names, every one crossed through.
+NIKOLA: Except the last.
+> [Read it]
+@ S_Cold
+% D_List
+NIKOLA: My name. What I owe, to the lev. Her ward number.
+NIKOLA: This is dated a year ago.
+NIKOLA: I saw the advert last month.
+-> end
+
+= back
+@ I_Seat
+@ I_Radio
+DISPATCHER: You're breathing hard.
+> There's someone down there.
+> [Say nothing] -> back_on
+DISPATCHER: There's nobody at Zavodska, Nikola. There hasn't been for thirty years.
+
+= back_on
+? found_badge -> back_late
+DISPATCHER: Straight there and straight back. Good lad.
+DISPATCHER: Signal's clear. Take them up to the depot.
+-> end
+
+= back_late
+DISPATCHER: You took your time.
+> The handle was stiff.
+> [Say nothing] -> stoyan
+DISPATCHER: Was it.
+
+= stoyan
+DISPATCHER: Stoyan took his time as well.
+DISPATCHER: Signal's clear. Take them up to the depot.
+-> end
+
+= depot_moving
+@ I_Radio
+DISPATCHER: Nearly there. You'll see the morning before anyone else does.
+
+= depot_fast
+@ I_Radio
+DISPATCHER: Ease off. Fifty is plenty.
+
+= depot_station
+@ I_Radio
+DISPATCHER: Depot's ahead, in the open. Stop at the board.
+
+= depot_short
+@ I_Radio
+DISPATCHER: You're short of the board. Bring her up.
+
+= depot_stopped
+@ I_Radio
+DISPATCHER: There. That's two.
+DISPATCHER: Put them off, leave her where she stands, and clock out at the hut. The day crew will take her in.
+-> end
+
+= depot_overran
+@ I_Radio
+DISPATCHER: That's past the board. You're tired, Nikola.
+DISPATCHER: Put them off, leave her where she stands, and clock out at the hut.
+-> end
+
+= get_up_depot
+NIKOLA: He hasn't moved.
+-> end
+
+= crossing
+NIKOLA: They've all gone that way. The fourteen stops on this side.
+
+= clock_out
+@ I_Stamp
+NIKOLA: Two shifts, two stamps.
+> [Look at the card]
+% D_TimeCard
+NIKOLA: And a third, underneath. Tomorrow night, ten o'clock.
+NIKOLA: The ink's dry.
+-> end
+
+= clock_again
+% D_TimeCard
+NIKOLA: Tomorrow night, ten o'clock. In the same ink as the others.
+-> end
+
+= phone
+@ I_PhoneUp
+NIKOLA: Hello?
+DISPATCHER: The fourteen comes through at ten past. You've time to catch your breath.
+DISPATCHER: Go home, Nikola. Get some sleep. We'd hate to see you make a mistake.
+> How did you know I'd be here?
+> [Hang up] -> phone_down
+DISPATCHER: It's the only bus.
+> I'll be there tomorrow.
+> [Hang up] -> phone_down
+DISPATCHER: I know you will.
+
+= phone_down
+@ I_PhoneDown
+-> end

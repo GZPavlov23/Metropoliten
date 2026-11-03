@@ -34,6 +34,9 @@ public class FirstPersonController : MonoBehaviour
     // A seat's own movement, added to the head on top of everything else.
     public Vector3 Shake { get; set; }
 
+    public bool Seated => seat != null;
+    public float Pitch => rotationX;
+
     private CharacterController controller;
     private Vector3 walkVelocity;
     private float fallSpeed;
@@ -44,6 +47,11 @@ public class FirstPersonController : MonoBehaviour
     private float smoothedHeight;
     private Transform attention;
     private Transform seat;
+
+    void Awake()
+    {
+        controller = GetComponent<CharacterController>();
+    }
 
     void OnEnable()
     {
@@ -66,7 +74,6 @@ public class FirstPersonController : MonoBehaviour
     void Start()
     {
         ApplySettings();
-        controller = GetComponent<CharacterController>();
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
 
@@ -106,6 +113,41 @@ public class FirstPersonController : MonoBehaviour
         controller.enabled = false;
         walkVelocity = Vector3.zero;
         transform.SetParent(place, true);
+    }
+
+    // Gets up out of the seat, on to the spot given.
+    public void Stand(Transform spot)
+    {
+        seat = null;
+        transform.SetParent(null, true);
+        MoveTo(spot.position);
+    }
+
+    // Puts the player back where they were when the game was saved, looking the same way.
+    public void Place(Vector3 position, float yaw, float pitch)
+    {
+        if (Seated) Stand(transform);
+        MoveTo(position);
+        transform.rotation = Quaternion.Euler(0f, yaw, 0f);
+        rotationX = pitch;
+    }
+
+    void MoveTo(Vector3 position)
+    {
+        controller.enabled = false;
+        transform.position = position;
+        controller.enabled = true;
+        lastPosition = position;
+        smoothedHeight = position.y;
+    }
+
+    // Already sitting down, as they were when the game was saved.
+    public void SettleNow()
+    {
+        transform.localPosition = Vector3.zero;
+        transform.localRotation = Quaternion.identity;
+        lastPosition = transform.position;
+        smoothedHeight = transform.position.y;
     }
 
     void HandleMouseLook()

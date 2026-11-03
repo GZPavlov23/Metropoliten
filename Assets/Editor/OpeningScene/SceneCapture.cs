@@ -53,6 +53,43 @@ public static class SceneCapture
         new Shot("25_shutter", 6.4f, 1.6f, 589f, 180f, 2f),
     };
 
+    static readonly Shot[] Shift2Shots =
+    {
+        new Shot("1_arrive", 10.5f, 1.6f, -5f, 0f, 2f),
+        new Shot("2_hall", 11.4f, 1.6f, 2f, -14f, 3f),
+        new Shot("3_platform", 6.2f, 1.6f, 6f, 2f, 3f),
+        new Shot("4_train", 9.6f, 1.6f, 24f, -90f, 6f),
+        new Shot("5_booth", 8.2f, 1.6f, 10.3f, 90f, 5f),
+        new Shot("6_vera", 10.3f, 1.6f, 10.3f, 90f, 3f),
+        new Shot("7_north", 5.2f, 1.6f, 38f, 180f, 3f),
+        new Shot("8_bench", 11f, 1.6f, 30.7f, 90f, 12f),
+        new Shot("9_lockers", 10.6f, 1.6f, 45f, 0f, 3f),
+        new Shot("10_bolnichna", 6.6f, 1.6f, 590f, 0f, 3f),
+        new Shot("11_bolnichna_exit", 6.8f, 1.6f, 600f, 62f, 3f),
+        new Shot("12_portal", 2.5f, 1.52f, 1185f, 0f, 2f),
+        new Shot("13_cutting", 2.5f, 1.52f, 1240f, 0f, 2f),
+        new Shot("14_terminal", 6.5f, 1.6f, 1330f, 0f, 3f),
+        new Shot("15_yard", 5f, 1.6f, 1340f, -90f, 3f),
+        new Shot("16_hut", 8.5f, 1.6f, 1356f, 14f, 3f),
+        new Shot("17_road", 11.4f, 1.6f, 1356f, 6f, 3f),
+        new Shot("18_town", 12f, 1.7f, 1362f, 90f, 3f),
+        new Shot("19_shelter", 14f, 1.6f, 1362f, -30f, 3f),
+        new Shot("20_exit", 10.4f, 1.6f, 19.3f, 90f, 3f),
+        new Shot("21_exit_close", 11.8f, 1.6f, 18.6f, 80f, 8f),
+        new Shot("22_relay", 6.6f, 1.66f, 991.25f, 180f, 8f),
+        new Shot("23_relay_far", 6.6f, 1.66f, 994.2f, 180f, 3f),
+        new Shot("24_seat", 2.5f, 1.52f, 31.8f, 0f, 6f),
+        new Shot("25_seat_left", 2.5f, 1.52f, 31.8f, -34f, 4f),
+        new Shot("26_seat_right", 2.5f, 1.52f, 31.8f, 36f, 4f),
+        new Shot("27_cab_back", 2.5f, 1.52f, 32f, 170f, 2f),
+        new Shot("28_phone", 12.2f, 1.6f, 1363.6f, -66f, 6f),
+        new Shot("29_bus_side", 12.6f, 1.6f, 1364f, 34f, 0f),
+        new Shot("30_street", 11.6f, 1.6f, 1361.2f, 90f, 2f),
+        new Shot("31_gate", 7.4f, 1.6f, 1352f, 40f, 2f),
+        new Shot("32_south", 12f, 1.6f, 1357f, 186f, 2f),
+        new Shot("33_stop", 13.1f, 1.6f, 1378f, -148f, 2f),
+    };
+
     static readonly Shot[] OpeningShots =
     {
         new Shot("1_start", 3.5f, 1.6f, 1.0f, 0f, 2f),
@@ -82,6 +119,7 @@ public static class SceneCapture
     {
         { "Opening", OpeningShots },
         { "Shift1", Shift1Shots },
+        { "Shift2", Shift2Shots },
         { "MainMenu", MenuShots },
     };
 
@@ -99,11 +137,33 @@ public static class SceneCapture
         PoseCharacters();
 
         Camera camera = Camera.main;
+
+        // The first frame after opening a scene can draw with the wrong textures, so it's thrown away.
+        Render(camera, Path.Combine(directory, "first_frame.tmp"), 64, 64);
+        File.Delete(Path.Combine(directory, "first_frame.tmp"));
+
+        // Two frames a hair apart show up anything fighting over the same pixels.
+        bool jitter = Argument("-captureJitter") != null;
+        Material post = AssetDatabase.LoadAssetAtPath<Material>("Assets/Art/Generated/M_RetroPost.mat");
+        float grain = post.GetFloat("_Grain");
+        if (jitter) post.SetFloat("_Grain", 0f);
+
         foreach (Shot shot in Shots[scene])
         {
             if (only != null && !shot.Name.Contains(only)) continue;
             camera.transform.SetPositionAndRotation(shot.Position, Quaternion.Euler(shot.Pitch, shot.Yaw, 0f));
+            if (camera.TryGetComponent(out OpenAir _) || camera.GetComponentInParent<OpenAir>() != null) camera.GetComponentInParent<OpenAir>().Apply(shot.Position.z);
+            HoldLamp(camera, shot.Name.Contains("relay") || shot.Name.Contains("locker"));
             Render(camera, Path.Combine(directory, shot.Name + ".png"), int.Parse(size[0]), int.Parse(size[1]));
+            if (!jitter) continue;
+
+            camera.transform.SetPositionAndRotation(shot.Position + new Vector3(0.0007f, 0.0004f, 0.0009f), Quaternion.Euler(shot.Pitch + 0.012f, shot.Yaw + 0.016f, 0f));
+            Render(camera, Path.Combine(directory, shot.Name + "_b.png"), int.Parse(size[0]), int.Parse(size[1]));
+        }
+        if (jitter)
+        {
+            post.SetFloat("_Grain", grain);
+            AssetDatabase.SaveAssets();
         }
 
         if (scene == "Shift1" && (only == null || only == "drive")) RenderTheRun(camera, directory, int.Parse(size[0]), int.Parse(size[1]));
@@ -135,12 +195,22 @@ public static class SceneCapture
             animator.Rebind();
             animator.Update(0.5f);
             if (animator.TryGetComponent(out RestHandsOnThighs hands)) hands.Rest();
+            if (animator.TryGetComponent(out HandsOnCounter counter)) counter.Rest();
         }
+    }
+
+    // The player's lamp, for shots of places that have no light of their own.
+    static void HoldLamp(Camera camera, bool on)
+    {
+        HandLamp lamp = UnityEngine.Object.FindAnyObjectByType<HandLamp>();
+        if (lamp == null) return;
+        lamp.beam.enabled = on;
+        lamp.beam.transform.SetPositionAndRotation(camera.transform.TransformPoint(new Vector3(0.18f, -0.22f, 0.2f)), camera.transform.rotation);
     }
 
     static void Render(Camera camera, string path, int width, int height)
     {
-        var target = new RenderTexture(width, height, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
+        var target = new RenderTexture(width, height, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB) { antiAliasing = 4 };
         camera.targetTexture = target;
         camera.Render();
 

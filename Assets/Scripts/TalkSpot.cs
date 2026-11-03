@@ -11,14 +11,21 @@ public class TalkSpot : MonoBehaviour
     [Tooltip("Who the player looks at to talk, and what the view turns to while talking.")]
     public Transform person;
 
-    [Tooltip("Label in the script file for the first conversation.")]
+    [Tooltip("Label in the script file for the first conversation. Leave it empty for something the player just does.")]
     public string firstLabel = "clerk";
 
     [Tooltip("Label in the script file for talking to them again afterwards.")]
     public string laterLabel = "again";
 
     public string prompt = "E   Talk";
+
+    [Tooltip("What the prompt says after the first time, if it should say something else.")]
+    public string laterPrompt = "";
+
     public float reach = 1.9f;
+
+    [Tooltip("Can't be used for now, because something has to finish first.")]
+    public bool waiting;
 
     [Range(0f, 1f)]
     [Tooltip("How directly the player has to look at the person. 1 is dead centre.")]
@@ -39,15 +46,25 @@ public class TalkSpot : MonoBehaviour
 
         // Several spots share one prompt, so each only clears what it put up itself.
         bool canTalk = !dialogue.InConversation && PlayerCanTalk();
-        if (canTalk) dialogue.ShowPrompt(prompt);
+        if (canTalk) dialogue.ShowPrompt(talkedBefore && laterPrompt.Length > 0 ? laterPrompt : prompt);
         else if (promptShown) dialogue.HidePrompt();
         promptShown = canTalk;
 
         if (canTalk && Input.GetKeyDown(KeyCode.E)) StartCoroutine(Talk());
     }
 
+    // The conversation already happened, the last time the game was played.
+    public void Replay()
+    {
+        onTalkStarted.Invoke();
+        talkedBefore = true;
+        onFirstConversationEnded.Invoke();
+    }
+
     bool PlayerCanTalk()
     {
+        if (waiting) return false;
+
         Vector3 offset = player.transform.position - transform.position;
         offset.y = 0f;
         if (offset.magnitude > reach) return false;
@@ -61,12 +78,15 @@ public class TalkSpot : MonoBehaviour
         talking = true;
         promptShown = false;
         dialogue.HidePrompt();
-        player.HoldAttention(person);
         if (!talkedBefore) onTalkStarted.Invoke();
 
-        yield return dialogue.Play(talkedBefore ? laterLabel : firstLabel);
+        if (firstLabel.Length > 0)
+        {
+            player.HoldAttention(person);
+            yield return dialogue.Play(talkedBefore ? laterLabel : firstLabel);
+            player.ReleaseAttention();
+        }
 
-        player.ReleaseAttention();
         talking = false;
         if (talkedBefore) yield break;
 

@@ -22,6 +22,16 @@ public class ConversationScript
         public string Text;
         public string Jump;
         public string Sound;
+
+        // Written with a %: a picture to hold up while it's talked about. Empty puts it away.
+        public string Picture;
+
+        // Written with a !: something for the story to remember.
+        public string Remember;
+
+        // Written with a ?: only take the jump if the story remembers this.
+        public string OnlyIf;
+
         public List<Reply> Replies;
     }
 
@@ -47,6 +57,25 @@ public class ConversationScript
             else if (line.StartsWith("->"))
             {
                 steps.Add(new Step { Jump = line.Substring(2).Trim() });
+                choice = null;
+            }
+            else if (line.StartsWith("%"))
+            {
+                string picture = line.Substring(1).Trim();
+                if (picture.Length > 0) LoadPicture(picture);
+                steps.Add(new Step { Picture = picture });
+                choice = null;
+            }
+            else if (line.StartsWith("!"))
+            {
+                steps.Add(new Step { Remember = line.Substring(1).Trim() });
+                choice = null;
+            }
+            else if (line.StartsWith("?"))
+            {
+                int arrow = line.IndexOf("->", System.StringComparison.Ordinal);
+                if (arrow < 0) Debug.LogError($"{source.name}: can't read \"{line}\". Tests need ? flag -> label.");
+                else steps.Add(new Step { OnlyIf = line.Substring(1, arrow - 1).Trim(), Jump = line.Substring(arrow + 2).Trim() });
                 choice = null;
             }
             else if (line.StartsWith("@"))
@@ -76,6 +105,13 @@ public class ConversationScript
             }
         }
         CheckJumps(source.name);
+    }
+
+    public static Texture2D LoadPicture(string name)
+    {
+        var picture = Resources.Load<Texture2D>("Documents/" + name);
+        if (picture == null) Debug.LogError($"There's no picture called \"{name}\" in Resources/Documents.");
+        return picture;
     }
 
     // Where a label starts, or -1 for the end of the conversation.
